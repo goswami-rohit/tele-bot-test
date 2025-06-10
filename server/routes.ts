@@ -219,7 +219,7 @@ ${message}`;
   // Test endpoint to setup Telegram webhook
   app.get('/setup-webhook', async (req, res) => {
     try {
-      const webhookUrl = 'https://telegram-chat-api.onrender.com/webhook/telegram';
+      const webhookUrl = 'https://tele-bot-test.onrender.com/webhook/telegram';
       console.log('🔗 Setting up webhook for:', webhookUrl);
       
       const info = await telegramBot.setupWebhook(webhookUrl);
