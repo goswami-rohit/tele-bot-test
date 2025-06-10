@@ -265,7 +265,6 @@ export class TelegramBotService {
         console.log(`📝 Creating inquiry with ID: ${inquiryId}`);
         // For web users, store sessionId as userPhone for tracking
         const userPhone = platform === 'web' ? chatIdOrSessionId.toString() : data.phone;
-
         console.log(`📞 User phone/session: ${userPhone}, Platform: ${platform}`);
         const inquiryData = {
           inquiryId,
@@ -280,27 +279,38 @@ export class TelegramBotService {
           responseCount: 0
         };
 
+
         console.log(`💾 Creating inquiry in storage:`, inquiryData);
         await storage.createInquiry(inquiryData);
         console.log(`✅ Inquiry created in storage`);
-        // Notify vendors - ADD DEBUGGING HERE
-         // Fix: Pass the complete data with the correct phone number
-      
-         const vendorNotificationData = {
-        ...data,
-        phone: userPhone, // Ensure phone is properly set
-        inquiryId // Add inquiryId to the data
-      };
-        console.log(`📢 About to notify vendors for inquiry ${inquiryId}`);
-        console.log(`📋 Inquiry data for vendor notification:`, {
-          material: vendorNotificationData.material,
-          city: vendorNotificationData.city,
-          quantity: vendorNotificationData.quantity,
-          phone: vendorNotificationData.phone
-        });
+        
+        // Handle "both" material case by notifying both cement and TMT vendors
+        if (data.material === 'both' || data.material === ' Both Cement and TMT Bars') {
+          console.log(`📢 Material is "both" - notifying both cement and TMT vendors`);
 
-        await this.notifyVendorsOfNewInquiry(inquiryId, data);
-        console.log(`✅ Vendor notification completed for inquiry ${inquiryId}`);
+          // Notify cement vendors
+          const cementData = { ...data, material: 'cement', phone: data.phone };
+          console.log(`📢 Notifying cement vendors for inquiry ${inquiryId}`);
+          await this.notifyVendorsOfNewInquiry(inquiryId + '-CEMENT', cementData);
+
+          // Notify TMT vendors
+          const tmtData = { ...data, material: 'tmt', phone: data.phone };
+          console.log(`📢 Notifying TMT vendors for inquiry ${inquiryId}`);
+          await this.notifyVendorsOfNewInquiry(inquiryId + '-TMT', tmtData);
+
+          console.log(`✅ Both cement and TMT vendor notifications completed`);
+        } else {
+          // Single material - use existing logic
+          console.log(`📢 About to notify vendors for inquiry ${inquiryId}`);
+          console.log(`📋 Inquiry data for vendor notification:`, {
+            material: data.material,
+            city: data.city,
+            quantity: data.quantity,
+            phone: data.phone
+          });
+          await this.notifyVendorsOfNewInquiry(inquiryId, data);
+          console.log(`✅ Vendor notification completed for inquiry ${inquiryId}`);
+        }
       } else if (action === 'register_vendor') {
         const vendorId = `VEN-${Date.now()}`;
         console.log(`🏢 Registering vendor with ID: ${vendorId}`);
