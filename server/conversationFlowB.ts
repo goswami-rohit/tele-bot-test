@@ -1,5 +1,5 @@
 //server/conversationFLowB.ts
-//import { storage } from "./storage";
+import { storage } from "./storage";
 
 // conversationFlow.ts
 export interface ConversationContextB {
@@ -99,7 +99,7 @@ Please enter your city name:`,
       const capitalizedCity = this.capitalizeCity(message);
       
       return {
-        message: `📦 How much ${data.material === 'cement' ? 'cement' : 'TMT bars'} do you need?
+        message: `📦 How much ${data.material === 'cement' ? 'Cement' : data.material === 'tmt' ? 'TMT Bars' : 'Cement & TMT Bars'} do you need?
 
 Please specify quantity (e.g., "50 bags" or "10 tons"):`,
         nextStep: 'buyer_quantity',

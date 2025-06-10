@@ -284,12 +284,19 @@ export class TelegramBotService {
         await storage.createInquiry(inquiryData);
         console.log(`✅ Inquiry created in storage`);
         // Notify vendors - ADD DEBUGGING HERE
+         // Fix: Pass the complete data with the correct phone number
+      
+         const vendorNotificationData = {
+        ...data,
+        phone: userPhone, // Ensure phone is properly set
+        inquiryId // Add inquiryId to the data
+      };
         console.log(`📢 About to notify vendors for inquiry ${inquiryId}`);
         console.log(`📋 Inquiry data for vendor notification:`, {
-          material: data.material,
-          city: data.city,
-          quantity: data.quantity,
-          phone: data.phone
+          material: vendorNotificationData.material,
+          city: vendorNotificationData.city,
+          quantity: vendorNotificationData.quantity,
+          phone: vendorNotificationData.phone
         });
 
         await this.notifyVendorsOfNewInquiry(inquiryId, data);
