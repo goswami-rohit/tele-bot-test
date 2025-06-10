@@ -517,9 +517,9 @@ GST: [gst percentage]%
 DELIVERY: [delivery charge]
 Inquiry ID: ${inquiryId}
 ✅ **Example (copy and edit):**
-RATE: 350 per bag
-GST: 18%
-DELIVERY: 500
+RATE: XXX per bag
+GST: XX%
+DELIVERY: XXX
 Inquiry ID: ${inquiryId}
 ❌ Any other format will be ignored!`;
           try {

@@ -77,7 +77,7 @@ Reply with 1 or 2 or 3`,
 
     // Buyer flow
     if (step === 'buyer_material') {
-      const material = message === '1' ? 'cement' : message === '2' ? 'tmt' : message === '3' ? 'both' : null;
+      const material = message === '1' ? 'cement' : message === '2' ? 'tmt' : message === '3' ? ' Both Cement and TMT Bars' : null;
       if (!material) {
         return {
           message: `Please reply with 1 for Cement or 2 for TMT Bars and 3 for both`,
@@ -86,7 +86,7 @@ Reply with 1 or 2 or 3`,
       }
 
       return {
-        message: `📍 Which city do you need ${material === 'cement' ? 'cement' : material === 'tmt' ? 'tmt' : material === 'both' ? 'cement & tmt': material} in?
+        message: `📍 Which city do you need ${material === 'cement' ? 'cement' : material === 'tmt' ? 'tmt' : 'Both Cement and TMT Bars'} in?
 
 Please enter your city name:`,
         nextStep: 'buyer_city',
@@ -120,7 +120,7 @@ Please specify quantity (e.g., "50 bags" or "10 tons"):`,
         message: `✅ Perfect! Your inquiry has been created and sent to vendors in ${data.city}.
 
 📋 **Your Inquiry Summary:**
-🏗️ Material: ${data.material === 'cement' ? 'Cement' : 'TMT Bars'}
+🏗️ Material: ${data.material === 'cement' ? 'Cement' : data.material === 'tmt' ? 'TMT Bars' : 'Cement & TMT Bars'}
 📍 City: ${data.city}
 📦 Quantity: ${data.quantity}
 📱 Contact: ${message}
