@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { desc, eq } from 'drizzle-orm';
+import { eq, and, inArray, sql } from "drizzle-orm";
 import {
   vendors,
   inquiries,
@@ -21,7 +21,7 @@ import {
   type ApiKey,
   type InsertApiKey
 } from "../shared/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+
 
 export class DatabaseStorage {
   private db: any;

@@ -1,6 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { storage } from "../storage";
-import { conversationFlow, type ConversationContext } from "../conversationFlow";
+import { conversationFlowB, type ConversationContextB } from "../conversationFlowB";
+import { conversationFlowV, type ConversationContextV } from "../conversationFlowV";
 import { Server as SocketIOServer } from 'socket.io';
 
 // Add global Socket.io declaration
@@ -167,7 +168,7 @@ export class TelegramBotService {
       });
 
       // Process message through conversation flow
-      const context: ConversationContext = {
+      const context: ConversationContextB = {
         chatId: sessionId,
         userType: 'web',
         sessionId,
@@ -175,7 +176,7 @@ export class TelegramBotService {
         data: session.data
       };
 
-      const response = await conversationFlow.processMessage(context, userMessage);
+      const response = await conversationFlowB.processMessage(context, userMessage);
 
       // Update session
       session.step = response.nextStep;
@@ -229,15 +230,15 @@ export class TelegramBotService {
       this.userSessions.set(chatId.toString(), session);
     }
 
-    // Process message through conversation flow
-    const context: ConversationContext = {
+    // Process message through conversationFlowV for telegram users
+    const context: ConversationContextV = {
       chatId: chatId.toString(),
       userType: 'telegram',
       step: session.step,
       data: session.data
     };
 
-    const response = await conversationFlow.processMessage(context, text);
+    const response = await conversationFlowV.processMessage(context, text);
 
     // Update session
     session.step = response.nextStep;

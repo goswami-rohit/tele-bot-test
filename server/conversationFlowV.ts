@@ -1,8 +1,8 @@
-//server/conversationFLow.ts
+//server/conversationFLowV.ts
 //import { storage } from "./storage";
 
 // conversationFlow.ts
-export interface ConversationContext {
+export interface ConversationContextV {
   chatId: string;
   userType?: 'telegram' | 'web';
   sessionId?: string;
@@ -17,7 +17,7 @@ export interface FlowResponse {
   data?: any;
 }
 
-export class ConversationFlow {
+export class ConversationFlowV {
   // Helper function to capitalize city names
   private capitalizeCity(cityName: string): string {
     return cityName
@@ -27,7 +27,7 @@ export class ConversationFlow {
       .join(' ');
   }
 
-  async processMessage(context: ConversationContext, message: string): Promise<FlowResponse> {
+  async processMessage(context: ConversationContextV, message: string): Promise<FlowResponse> {
     const { chatId, step, data = {} } = context;
     
     // Handle /start command
@@ -35,6 +35,7 @@ export class ConversationFlow {
       return {
         message: `🏗️ Welcome to CemTemBot! 
 
+Let's get you started with your enquiry...
 I help you get instant pricing for cement and TMT bars from verified vendors in your city.
 
 Are you a:
@@ -203,4 +204,4 @@ You'll now receive inquiry notifications and can send quotes!`,
   }
 }
 
-export const conversationFlow = new ConversationFlow();
+export const conversationFlowV = new ConversationFlowV();
