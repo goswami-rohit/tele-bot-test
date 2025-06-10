@@ -1,7 +1,6 @@
 //server/conversationFLowB.ts
 import { storage } from "./storage";
 
-// conversationFlow.ts
 export interface ConversationContextB {
   chatId: string;
   userType?: 'telegram' | 'web';

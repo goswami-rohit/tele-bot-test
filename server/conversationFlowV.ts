@@ -1,8 +1,7 @@
 //server/conversationFLowB.ts
 import { storage } from "./storage";
 
-// conversationFlow.ts
-export interface ConversationContextB {
+export interface ConversationContextV {
   chatId: string;
   userType?: 'telegram' | 'web';
   sessionId?: string;
@@ -17,7 +16,7 @@ export interface FlowResponse {
   data?: any;
 }
 
-export class ConversationFlowB {
+export class ConversationFlowV {
   // Helper function to capitalize city names
   private capitalizeCity(cityName: string): string {
     return cityName
@@ -27,7 +26,7 @@ export class ConversationFlowB {
       .join(' ');
   }
 
-  async processMessage(context: ConversationContextB, message: string): Promise<FlowResponse> {
+  async processMessage(context: ConversationContextV, message: string): Promise<FlowResponse> {
     const { chatId, step, data = {} } = context;
 
     // Handle /start command
@@ -213,4 +212,4 @@ Vendors will send you quotes shortly!`,
   }
 }
 
-export const conversationFlowB = new ConversationFlowB();
+export const conversationFlowV = new ConversationFlowV();
