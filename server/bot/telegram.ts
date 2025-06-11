@@ -19,6 +19,7 @@ export class TelegramBotService {
   private userSessions: Map<string, any> = new Map();
   private webSessions: Map<string, any> = new Map(); // NEW: Web session storage
   private token: string;
+  private vendorInputState: Map<string, any> = new Map();
 
   constructor(config: TelegramBotConfig) {
     this.token = config.token;
@@ -126,6 +127,25 @@ export class TelegramBotService {
           this.handleIncomingMessage(msg);
         });
 
+        this.bot.on('callback_query', async (query) => {
+          try {
+            const data = query.data;
+            const chatId = query.message.chat.id;
+
+            console.log(`🔘 Callback query received from ${chatId}:`, data);
+
+            if (data.startsWith('rate_custom_')) {
+              await this.handleCustomRateButton(query, data);
+            } else if (data.startsWith('gst_')) {
+              await this.handleGstSelection(query, data);
+            } else if (data.startsWith('delivery_')) {
+              await this.handleDeliverySelection(query, data);
+            }
+          } catch (error) {
+            console.error('❌ Error handling callback query:', error);
+          }
+        });
+
         this.bot.on('error', (error) => {
           console.error('Telegram bot error:', error);
         });
@@ -218,10 +238,21 @@ export class TelegramBotService {
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    // Handle vendor rate response first
-    if (await this.handleVendorRateResponse(msg)) {
+    // NEW: Check if vendor is in input mode first
+    const inputState = this.vendorInputState.get(chatId.toString());
+    if (inputState) {
+      await this.handleVendorInput(msg, inputState);
       return;
     }
+    // Handle vendor rate response (keep your existing logic)
+    // if (await this.handleVendorRateResponse(msg)) {
+    //   return;
+    // }
+
+    // // Handle vendor rate response first
+    // if (await this.handleVendorRateResponse(msg)) {
+    //   return;
+    // }
 
     // Get or create session
     let session = this.userSessions.get(chatId.toString());
@@ -283,7 +314,7 @@ export class TelegramBotService {
         console.log(`💾 Creating inquiry in storage:`, inquiryData);
         await storage.createInquiry(inquiryData);
         console.log(`✅ Inquiry created in storage`);
-        
+
         // Handle "both" material case by notifying both cement and TMT vendors
         if (data.material === 'both' || data.material === ' Both Cement and TMT Bars') {
           console.log(`📢 Material is "both" - notifying both cement and TMT vendors`);
@@ -341,61 +372,61 @@ export class TelegramBotService {
     return session ? session.messages : [];
   }
 
-  async handleVendorRateResponse(msg: any) {
-    const chatId = msg.chat.id;
-    const text = msg.text;
+//   async handleVendorRateResponse(msg: any) {
+//     const chatId = msg.chat.id;
+//     const text = msg.text;
 
-    const ratePattern = /RATE:\s*([0-9]+(?:\.[0-9]+)?)\s*per\s*(\w+)/i;
-    const gstPattern = /GST:\s*([0-9]+(?:\.[0-9]+)?)%/i;
-    const deliveryPattern = /DELIVERY:\s*([0-9]+(?:\.[0-9]+)?)/i;
-    const inquiryPattern = /Inquiry ID:\s*(INQ-[0-9]+)/i;
+//     const ratePattern = /RATE:\s*([0-9]+(?:\.[0-9]+)?)\s*per\s*(\w+)/i;
+//     const gstPattern = /GST:\s*([0-9]+(?:\.[0-9]+)?)%/i;
+//     const deliveryPattern = /DELIVERY:\s*([0-9]+(?:\.[0-9]+)?)/i;
+//     const inquiryPattern = /Inquiry ID:\s*(INQ-[0-9]+)/i;
 
-    const rateMatch = text.match(ratePattern);
-    const gstMatch = text.match(gstPattern);
-    const deliveryMatch = text.match(deliveryPattern);
-    const inquiryMatch = text.match(inquiryPattern);
+//     const rateMatch = text.match(ratePattern);
+//     const gstMatch = text.match(gstPattern);
+//     const deliveryMatch = text.match(deliveryPattern);
+//     const inquiryMatch = text.match(inquiryPattern);
 
-    if (rateMatch && inquiryMatch) {
-      const rate = parseFloat(rateMatch[1]);
-      const unit = rateMatch[2];
-      const gst = gstMatch ? parseFloat(gstMatch[1]) : 0;
-      const delivery = deliveryMatch ? parseFloat(deliveryMatch[1]) : 0;
-      const inquiryId = inquiryMatch[1];
+//     if (rateMatch && inquiryMatch) {
+//       const rate = parseFloat(rateMatch[1]);
+//       const unit = rateMatch[2];
+//       const gst = gstMatch ? parseFloat(gstMatch[1]) : 0;
+//       const delivery = deliveryMatch ? parseFloat(deliveryMatch[1]) : 0;
+//       const inquiryId = inquiryMatch[1];
 
-      console.log(`📋 Rate response received from ${chatId}:`, {
-        rate, unit, gst, delivery, inquiryId
-      });
+//       console.log(`📋 Rate response received from ${chatId}:`, {
+//         rate, unit, gst, delivery, inquiryId
+//       });
 
-      await this.processVendorRateSubmission(chatId, {
-        inquiryId,
-        rate,
-        unit,
-        gst,
-        delivery
-      });
+//       await this.processVendorRateSubmission(chatId, {
+//         inquiryId,
+//         rate,
+//         unit,
+//         gst,
+//         delivery
+//       });
 
-      await this.sendMessage(chatId, `✅ Thank you! Your quote has been received and sent to the buyer.
+//       await this.sendMessage(chatId, `✅ Thank you! Your quote has been received and sent to the buyer.
       
-📋 Your Quote:
-💰 Rate: ₹${rate} per ${unit}
-📊 GST: ${gst}%
-🚚 Delivery: ₹${delivery}
+// 📋 Your Quote:
+// 💰 Rate: ₹${rate} per ${unit}
+// 📊 GST: ${gst}%
+// 🚚 Delivery: ₹${delivery}
       
-Inquiry ID: ${inquiryId}`);
+// Inquiry ID: ${inquiryId}`);
 
-      try {
-        await storage.createNotification({
-          message: `✅ Vendor quote received: ${rate} per ${unit} (Inquiry #${inquiryId})`,
-          type: 'vendor_quote_confirmed'
-        });
-      } catch (err) {
-        console.error('Failed to create notification:', err);
-      }
-      return true;
-    }
+//       try {
+//         await storage.createNotification({
+//           message: `✅ Vendor quote received: ${rate} per ${unit} (Inquiry #${inquiryId})`,
+//           type: 'vendor_quote_confirmed'
+//         });
+//       } catch (err) {
+//         console.error('Failed to create notification:', err);
+//       }
+//       return true;
+//     }
 
-    return false;
-  }
+//     return false;
+//   }
 
   private async processVendorRateSubmission(chatId: number, rateData: any) {
     try {
@@ -521,19 +552,21 @@ More quotes may follow from other vendors!`;
 📍 City: ${inquiryData.city}
 📦 Quantity: ${inquiryData.quantity || 'Not specified'}
 📱 Buyer Contact: ${inquiryData.phone || 'Web User'}
-⚠️ **IMPORTANT: Reply with EXACT format below:**
-RATE: [your rate] per [unit]
-GST: [gst percentage]%
-DELIVERY: [delivery charge]
-Inquiry ID: ${inquiryId}
-✅ **Example (copy and edit):**
-RATE: XXX per bag
-GST: XX%
-DELIVERY: XXX
-Inquiry ID: ${inquiryId}
-❌ Any other format will be ignored!`;
+Please Provide your Quote: `;
+
+          // Replace the keyboard with this:
+          const rateKeyboard = {
+            inline_keyboard: [
+              [
+                { text: "💰 Enter Rate Amount", callback_data: `rate_custom_${inquiryId}` }
+              ]
+            ]
+          };
           try {
-            await this.sendMessage(parseInt(vendor.telegramId), vendorMessage);
+            await this.bot.sendMessage(parseInt(vendor.telegramId), vendorMessage, {
+              reply_markup: rateKeyboard,
+              parse_mode: 'Markdown'
+            });
             console.log(`✅ Message sent successfully to vendor ${vendor.name}`);
           } catch (msgError) {
             console.error(`❌ Failed to send message to vendor ${vendor.name}:`, msgError);
@@ -546,6 +579,195 @@ Inquiry ID: ${inquiryId}
     } catch (error) {
       console.error('❌ Error in notifyVendorsOfNewInquiry:', error);
       console.error('❌ Error stack:', error.stack);
+    }
+  }
+
+  async handleCustomRateButton(query: any, data: string) {
+    const chatId = query.message.chat.id;
+    const inquiryId = data.replace('rate_custom_', '');
+
+    // Store that we're waiting for custom rate from this vendor
+    this.vendorInputState.set(chatId.toString(), {
+      waitingFor: 'rate',
+      inquiryId: inquiryId,
+      step: 'rate',
+      data: {}
+    });
+
+    await this.bot.sendMessage(chatId, `💰 Please enter your rate per unit:
+
+Example: 250
+(Just type the number, I'll add ₹ and "per unit")`);
+
+    await this.bot.answerCallbackQuery(query.id);
+  }
+
+  async handleGstSelection(query: any, data: string) {
+    const chatId = query.message.chat.id;
+    const parts = data.split('_'); // gst_18_INQ-123_250
+    const gst = parts[1];
+    const inquiryId = parts[2];
+    const rate = parts[3];
+
+    if (gst === 'custom') {
+      this.vendorInputState.set(chatId.toString(), {
+        waitingFor: 'gst',
+        inquiryId: inquiryId,
+        step: 'gst',
+        data: { rate }
+      });
+
+      await this.bot.sendMessage(chatId, `📊 Please enter GST percentage:
+
+Example: 18
+(Just type the number, I'll add %)`);
+    } else {
+      // Fixed GST selected
+      await this.showDeliveryKeyboard(chatId, inquiryId, rate, gst);
+    }
+
+    await this.bot.answerCallbackQuery(query.id);
+  }
+
+  async handleDeliverySelection(query: any, data: string) {
+    const chatId = query.message.chat.id;
+    const parts = data.split('_'); // delivery_0_INQ-123_250_18 or delivery_custom_INQ-123_250_18
+    const delivery = parts[1];
+    const inquiryId = parts[2];
+    const rate = parts[3];
+    const gst = parts[4];
+
+    if (delivery === 'custom') {
+      this.vendorInputState.set(chatId.toString(), {
+        waitingFor: 'delivery',
+        inquiryId: inquiryId,
+        step: 'delivery',
+        data: { rate, gst }
+      });
+
+      await this.bot.sendMessage(chatId, `🚚 Please enter delivery charge:
+
+Example: 400
+(Just type the number for delivery charge, or 0 for free delivery)`);
+    } else {
+      // Fixed delivery selected
+      await this.processCompleteQuote(chatId, inquiryId, rate, gst, delivery);
+    }
+
+    await this.bot.answerCallbackQuery(query.id);
+  }
+
+  async showGstKeyboard(chatId: number, inquiryId: string, rate: string) {
+    const gstMessage = `✅ Rate set: ₹${rate} per bag
+
+What's your GST percentage?`;
+
+    const gstKeyboard = {
+      inline_keyboard: [
+        [
+          { text: "📝 Enter Custom GST%", callback_data: `gst_custom_${inquiryId}_${rate}` }
+        ]
+      ]
+    };
+
+    await this.bot.sendMessage(chatId, gstMessage, {
+      reply_markup: gstKeyboard
+    });
+  }
+
+  async showDeliveryKeyboard(chatId: number, inquiryId: string, rate: string, gst: string) {
+    const deliveryMessage = `✅ GST set: ${gst}%
+
+What's your delivery charge?`;
+
+    const deliveryKeyboard = {
+      inline_keyboard: [
+        [
+          { text: "🆓 Free Delivery", callback_data: `delivery_0_${inquiryId}_${rate}_${gst}` }
+        ],
+        [
+          { text: "🚚 Enter Delivery Amount", callback_data: `delivery_custom_${inquiryId}_${rate}_${gst}` }
+        ]
+      ]
+    };
+
+    await this.bot.sendMessage(chatId, deliveryMessage, {
+      reply_markup: deliveryKeyboard
+    });
+  }
+
+  async handleVendorInput(msg: any, inputState: any) {
+    const chatId = msg.chat.id;
+    const text = msg.text;
+    const { waitingFor, inquiryId, data } = inputState;
+
+    if (waitingFor === 'rate') {
+      const rate = parseFloat(text);
+      if (isNaN(rate) || rate <= 0) {
+        await this.bot.sendMessage(chatId, "❌ Please enter a valid number. Example: 250");
+        return;
+      }
+
+      await this.showGstKeyboard(chatId, inquiryId, rate.toString());
+      this.vendorInputState.delete(chatId.toString());
+
+    } else if (waitingFor === 'gst') {
+      const gst = parseFloat(text);
+      if (isNaN(gst) || gst < 0 || gst > 30) {
+        await this.bot.sendMessage(chatId, "❌ Please enter a valid GST percentage (0-30). Example: 18");
+        return;
+      }
+
+      await this.showDeliveryKeyboard(chatId, inquiryId, data.rate, gst.toString());
+      this.vendorInputState.delete(chatId.toString());
+
+    } else if (waitingFor === 'delivery') {
+      const delivery = parseFloat(text);
+      if (isNaN(delivery) || delivery < 0) {
+        await this.bot.sendMessage(chatId, "❌ Please enter a valid delivery charge (0 or higher). Example: 400");
+        return;
+      }
+
+      await this.processCompleteQuote(chatId, inquiryId, data.rate, data.gst, delivery.toString());
+      this.vendorInputState.delete(chatId.toString());
+    }
+  }
+
+  async processCompleteQuote(chatId: number, inquiryId: string, rate: string, gst: string, delivery: string) {
+    try {
+      // Send confirmation to vendor
+      await this.bot.sendMessage(chatId, `✅ Quote submitted successfully!
+
+📋 **Your Quote Summary:**
+💰 Rate: ₹${rate} per bag
+📊 GST: ${gst}%
+🚚 Delivery: ${delivery === '0' ? 'Free' : '₹' + delivery}
+
+Inquiry ID: ${inquiryId}
+
+Your quote has been sent to the buyer!`);
+
+      // Process the quote (use your existing logic)
+      await this.processVendorRateSubmission(chatId, {
+        inquiryId,
+        rate: parseFloat(rate),
+        unit: 'bag',
+        gst: parseFloat(gst),
+        delivery: parseFloat(delivery)
+      });
+
+      // Create notification
+      try {
+        await storage.createNotification({
+          message: `✅ Vendor quote received: ₹${rate} per bag (Inquiry #${inquiryId})`,
+          type: 'vendor_quote_confirmed'
+        });
+      } catch (err) {
+        console.error('Failed to create notification:', err);
+      }
+    } catch (error) {
+      console.error('❌ Error processing complete quote:', error);
+      await this.bot.sendMessage(chatId, "❌ There was an error processing your quote. Please try again.");
     }
   }
 
