@@ -372,61 +372,61 @@ export class TelegramBotService {
     return session ? session.messages : [];
   }
 
-//   async handleVendorRateResponse(msg: any) {
-//     const chatId = msg.chat.id;
-//     const text = msg.text;
+  //   async handleVendorRateResponse(msg: any) {
+  //     const chatId = msg.chat.id;
+  //     const text = msg.text;
 
-//     const ratePattern = /RATE:\s*([0-9]+(?:\.[0-9]+)?)\s*per\s*(\w+)/i;
-//     const gstPattern = /GST:\s*([0-9]+(?:\.[0-9]+)?)%/i;
-//     const deliveryPattern = /DELIVERY:\s*([0-9]+(?:\.[0-9]+)?)/i;
-//     const inquiryPattern = /Inquiry ID:\s*(INQ-[0-9]+)/i;
+  //     const ratePattern = /RATE:\s*([0-9]+(?:\.[0-9]+)?)\s*per\s*(\w+)/i;
+  //     const gstPattern = /GST:\s*([0-9]+(?:\.[0-9]+)?)%/i;
+  //     const deliveryPattern = /DELIVERY:\s*([0-9]+(?:\.[0-9]+)?)/i;
+  //     const inquiryPattern = /Inquiry ID:\s*(INQ-[0-9]+)/i;
 
-//     const rateMatch = text.match(ratePattern);
-//     const gstMatch = text.match(gstPattern);
-//     const deliveryMatch = text.match(deliveryPattern);
-//     const inquiryMatch = text.match(inquiryPattern);
+  //     const rateMatch = text.match(ratePattern);
+  //     const gstMatch = text.match(gstPattern);
+  //     const deliveryMatch = text.match(deliveryPattern);
+  //     const inquiryMatch = text.match(inquiryPattern);
 
-//     if (rateMatch && inquiryMatch) {
-//       const rate = parseFloat(rateMatch[1]);
-//       const unit = rateMatch[2];
-//       const gst = gstMatch ? parseFloat(gstMatch[1]) : 0;
-//       const delivery = deliveryMatch ? parseFloat(deliveryMatch[1]) : 0;
-//       const inquiryId = inquiryMatch[1];
+  //     if (rateMatch && inquiryMatch) {
+  //       const rate = parseFloat(rateMatch[1]);
+  //       const unit = rateMatch[2];
+  //       const gst = gstMatch ? parseFloat(gstMatch[1]) : 0;
+  //       const delivery = deliveryMatch ? parseFloat(deliveryMatch[1]) : 0;
+  //       const inquiryId = inquiryMatch[1];
 
-//       console.log(`📋 Rate response received from ${chatId}:`, {
-//         rate, unit, gst, delivery, inquiryId
-//       });
+  //       console.log(`📋 Rate response received from ${chatId}:`, {
+  //         rate, unit, gst, delivery, inquiryId
+  //       });
 
-//       await this.processVendorRateSubmission(chatId, {
-//         inquiryId,
-//         rate,
-//         unit,
-//         gst,
-//         delivery
-//       });
+  //       await this.processVendorRateSubmission(chatId, {
+  //         inquiryId,
+  //         rate,
+  //         unit,
+  //         gst,
+  //         delivery
+  //       });
 
-//       await this.sendMessage(chatId, `✅ Thank you! Your quote has been received and sent to the buyer.
-      
-// 📋 Your Quote:
-// 💰 Rate: ₹${rate} per ${unit}
-// 📊 GST: ${gst}%
-// 🚚 Delivery: ₹${delivery}
-      
-// Inquiry ID: ${inquiryId}`);
+  //       await this.sendMessage(chatId, `✅ Thank you! Your quote has been received and sent to the buyer.
 
-//       try {
-//         await storage.createNotification({
-//           message: `✅ Vendor quote received: ${rate} per ${unit} (Inquiry #${inquiryId})`,
-//           type: 'vendor_quote_confirmed'
-//         });
-//       } catch (err) {
-//         console.error('Failed to create notification:', err);
-//       }
-//       return true;
-//     }
+  // 📋 Your Quote:
+  // 💰 Rate: ₹${rate} per ${unit}
+  // 📊 GST: ${gst}%
+  // 🚚 Delivery: ₹${delivery}
 
-//     return false;
-//   }
+  // Inquiry ID: ${inquiryId}`);
+
+  //       try {
+  //         await storage.createNotification({
+  //           message: `✅ Vendor quote received: ${rate} per ${unit} (Inquiry #${inquiryId})`,
+  //           type: 'vendor_quote_confirmed'
+  //         });
+  //       } catch (err) {
+  //         console.error('Failed to create notification:', err);
+  //       }
+  //       return true;
+  //     }
+
+  //     return false;
+  //   }
 
   private async processVendorRateSubmission(chatId: number, rateData: any) {
     try {
@@ -436,9 +436,15 @@ export class TelegramBotService {
         return;
       }
 
-      const inquiry = await storage.getInquiryById(rateData.inquiryId);
+      // Fix: Remove suffix to find original inquiry
+      let originalInquiryId = rateData.inquiryId;
+      if (originalInquiryId.includes('-CEMENT') || originalInquiryId.includes('-TMT')) {
+        originalInquiryId = originalInquiryId.replace('-CEMENT', '').replace('-TMT', '');
+      }
+
+      const inquiry = await storage.getInquiryById(originalInquiryId);
       if (!inquiry) {
-        console.log(`❌ Inquiry not found: ${rateData.inquiryId}`);
+        console.log(`❌ Inquiry not found: ${originalInquiryId}`);
         return;
       }
 
@@ -658,7 +664,7 @@ Example: 400
   }
 
   async showGstKeyboard(chatId: number, inquiryId: string, rate: string) {
-    const gstMessage = `✅ Rate set: ₹${rate} per bag
+    const gstMessage = `✅ Rate set: ₹${rate} per unit
 
 What's your GST percentage?`;
 
@@ -739,7 +745,7 @@ What's your delivery charge?`;
       await this.bot.sendMessage(chatId, `✅ Quote submitted successfully!
 
 📋 **Your Quote Summary:**
-💰 Rate: ₹${rate} per bag
+💰 Rate: ₹${rate} per unit
 📊 GST: ${gst}%
 🚚 Delivery: ${delivery === '0' ? 'Free' : '₹' + delivery}
 
@@ -759,7 +765,7 @@ Your quote has been sent to the buyer!`);
       // Create notification
       try {
         await storage.createNotification({
-          message: `✅ Vendor quote received: ₹${rate} per bag (Inquiry #${inquiryId})`,
+          message: `✅ Vendor quote received: ₹${rate} per unit (Inquiry #${inquiryId})`,
           type: 'vendor_quote_confirmed'
         });
       } catch (err) {
