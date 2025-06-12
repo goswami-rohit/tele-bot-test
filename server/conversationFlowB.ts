@@ -24,19 +24,30 @@ const CEMENT_TYPES = [
   'PPC Grade 33',
   'PPC Grade 43',
   'PPC Grade 53',
-  'Rapid Hardening Cement Grade 33',
-  'Rapid Hardening Cement Grade 43',
-  'Rapid Hardening Cement Grade 53',
-  'Quick Setting Cement Grade 33',
-  'Quick Setting Cement Grade 43',
-  'Quick Setting Cement Grade 53',
-  'Low Heat Cement Grade 33',
-  'Low Heat Cement Grade 43',
-  'Low Heat Cement Grade 53',
   'Enter Other Specific Type'
 ];
 
 const TMT_SIZES = ['5.5mm', '6mm', '8mm', '10mm', '12mm', '16mm', '18mm', '20mm', '24mm', '26mm', '28mm', '32mm', '36mm', '40mm'];
+
+const CEMENT_COMPANIES = [
+  'Ambuja',
+  'Ultratech', 
+  'MAX',
+  'Dalmia',
+  'ACC',
+  'Black Tiger',
+  'Topcem',
+  'Star',
+  'Any Company'
+];
+
+const TMT_COMPANIES = [
+  'Xtech',
+  'TATA Tiscon',
+  'JSW', 
+  'Shyam Steel',
+  'Any Company'
+];
 
 export class ConversationFlowB {
   // Helper function to capitalize city names
@@ -111,41 +122,52 @@ Reply with 1 or 2 or 3`,
       // Move to company preference based on material
       if (material === 'cement') {
         return {
-          message: `🏭 Do you have any specific cement company preference?
+          message: `🏭 Select cement company preference (reply with number):
 
-Type the company name (e.g., ACC, UltraTech, Ambuja) or reply "Any" if no preference:`,
-          nextStep: 'buyer_cement_company',
-          data: { ...data, material }
+${CEMENT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
+          nextStep: 'buyer_cement_company_select',
+          data: { ...data, material },
+          showOptions: CEMENT_COMPANIES
         };
       } else if (material === 'tmt') {
         return {
-          message: `🏭 Do you have any specific TMT company preference?
+          message: `🏗️ Select TMT company preference (reply with number):
 
-Type the company name (e.g., TATA, JSW, SAIL) or reply "Any" if no preference:`,
-          nextStep: 'buyer_tmt_company',
-          data: { ...data, material }
+${TMT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
+          nextStep: 'buyer_tmt_company_select',
+          data: { ...data, material },
+          showOptions: TMT_COMPANIES
         };
       } else if (material === 'both') {
         return {
-          message: `🏭 Let's start with cement. Do you have any specific cement company preference?
+          message: `🏭 Let's start with cement. Select cement company preference (reply with number):
 
-Type the company name (e.g., ACC, UltraTech, Ambuja) or reply "Any" if no preference:`,
-          nextStep: 'buyer_cement_company',
-          data: { ...data, material }
+${CEMENT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
+          nextStep: 'buyer_cement_company_select',
+          data: { ...data, material },
+          showOptions: CEMENT_COMPANIES
         };
       }
     }
 
-    // NEW: Cement company preference
-    if (step === 'buyer_cement_company') {
-      const cementCompany = message.trim() === '' ? 'Any' : message;
+    // NEW: Cement company selection
+    if (step === 'buyer_cement_company_select') {
+      const selectedIndex = parseInt(message.trim()) - 1;
+      const selectedCompany = CEMENT_COMPANIES[selectedIndex];
+
+      if (!selectedCompany) {
+        return {
+          message: `Please select a valid number (1-${CEMENT_COMPANIES.length})`,
+          nextStep: 'buyer_cement_company_select'
+        };
+      }
 
       return {
         message: `🏗️ Select cement types you need (reply with numbers separated by commas, e.g., "1,3,5"):
 
 ${CEMENT_TYPES.map((type, index) => `${index + 1}. ${type}`).join('\n')}`,
         nextStep: 'buyer_cement_types',
-        data: { ...data, cementCompany },
+        data: { ...data, cementCompany: selectedCompany },
         showOptions: CEMENT_TYPES
       };
     }
@@ -176,18 +198,21 @@ ${CEMENT_TYPES.map((type, index) => `${index + 1}. ${type}`).join('\n')}`,
       // Check if we need TMT info (for "both" material)
       if (data.material === 'both') {
         return {
-          message: `✅ Cement types selected: ${selectedTypes.join(', ')}
+          message: `✅ Cement company: ${data.cementCompany}
+✅ Cement types: ${selectedTypes.join(', ')}
 
-🏭 Now for TMT bars. Do you have any specific TMT company preference?
+🏗️ Now for TMT bars. Select TMT company preference (reply with number):
 
-Type the company name (e.g., TATA, JSW, SAIL) or reply "Any" if no preference:`,
-          nextStep: 'buyer_tmt_company',
-          data: { ...data, cementTypes: selectedTypes }
+${TMT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
+          nextStep: 'buyer_tmt_company_select',
+          data: { ...data, cementTypes: selectedTypes },
+          showOptions: TMT_COMPANIES
         };
       } else {
         // Only cement selected, move to city
         return {
-          message: `✅ Selected: ${selectedTypes.join(', ')}
+          message: `✅ Company: ${data.cementCompany}
+✅ Types: ${selectedTypes.join(', ')}
 
 📍 Which city do you need these in?
 
@@ -205,17 +230,20 @@ Please enter your city name:`,
 
       if (data.material === 'both') {
         return {
-          message: `✅ Cement types selected: ${allCementTypes.join(', ')}
+          message: `✅ Cement company: ${data.cementCompany}
+✅ Cement types: ${allCementTypes.join(', ')}
 
-🏭 Now for TMT bars. Do you have any specific TMT company preference?
+🏗️ Now for TMT bars. Select TMT company preference (reply with number):
 
-Type the company name (e.g., TATA, JSW, SAIL) or reply "Any" if no preference:`,
-          nextStep: 'buyer_tmt_company',
-          data: { ...data, cementTypes: allCementTypes }
+${TMT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
+          nextStep: 'buyer_tmt_company_select',
+          data: { ...data, cementTypes: allCementTypes },
+          showOptions: TMT_COMPANIES
         };
       } else {
         return {
-          message: `✅ Selected: ${allCementTypes.join(', ')}
+          message: `✅ Company: ${data.cementCompany}
+✅ Types: ${allCementTypes.join(', ')}
 
 📍 Which city do you need these in?
 
@@ -226,16 +254,24 @@ Please enter your city name:`,
       }
     }
 
-    // NEW: TMT company preference
-    if (step === 'buyer_tmt_company') {
-      const tmtCompany = message.trim() === '' ? 'Any' : message;
+    // NEW: TMT company selection
+    if (step === 'buyer_tmt_company_select') {
+      const selectedIndex = parseInt(message.trim()) - 1;
+      const selectedCompany = TMT_COMPANIES[selectedIndex];
+
+      if (!selectedCompany) {
+        return {
+          message: `Please select a valid number (1-${TMT_COMPANIES.length})`,
+          nextStep: 'buyer_tmt_company_select'
+        };
+      }
 
       return {
         message: `🔧 Select TMT sizes you need (reply with numbers separated by commas, e.g., "3,5,7"):
 
 ${TMT_SIZES.map((size, index) => `${index + 1}. ${size}`).join('\n')}`,
         nextStep: 'buyer_tmt_sizes',
-        data: { ...data, tmtCompany },
+        data: { ...data, tmtCompany: selectedCompany },
         showOptions: TMT_SIZES
       };
     }
@@ -255,7 +291,8 @@ ${TMT_SIZES.map((size, index) => `${index + 1}. ${size}`).join('\n')}`,
       }
 
       return {
-        message: `✅ TMT sizes selected: ${selectedSizes.join(', ')}
+        message: `✅ TMT company: ${data.tmtCompany}
+✅ TMT sizes: ${selectedSizes.join(', ')}
 
 📍 Which city do you need these materials in?
 
@@ -271,11 +308,11 @@ Please enter your city name:`,
 
       let materialSummary = '';
       if (data.material === 'cement') {
-        materialSummary = `Cement: ${data.cementTypes.join(', ')}`;
+        materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}`;
       } else if (data.material === 'tmt') {
-        materialSummary = `TMT: ${data.tmtSizes.join(', ')}`;
+        materialSummary = `TMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
       } else if (data.material === 'both') {
-        materialSummary = `Cement: ${data.cementTypes.join(', ')}\nTMT: ${data.tmtSizes.join(', ')}`;
+        materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}\nTMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
       }
 
       return {

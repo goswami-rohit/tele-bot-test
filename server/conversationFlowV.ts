@@ -24,15 +24,6 @@ const CEMENT_TYPES = [
   'PPC Grade 33',
   'PPC Grade 43',
   'PPC Grade 53',
-  'Rapid Hardening Cement Grade 33',
-  'Rapid Hardening Cement Grade 43',
-  'Rapid Hardening Cement Grade 53',
-  'Quick Setting Cement Grade 33',
-  'Quick Setting Cement Grade 43',
-  'Quick Setting Cement Grade 53',
-  'Low Heat Cement Grade 33',
-  'Low Heat Cement Grade 43',
-  'Low Heat Cement Grade 53',
   'Enter Other Specific Type'
 ];
 
