@@ -307,16 +307,19 @@ Please enter your city name:`,
    if (step === 'buyer_city') {
   if (context.userType === 'web') {
     // For web users: expects "cityId:localityId" format
-    const [cityId, localityId] = message.split(':');
+    let formattedLocation = message;
+    let cityId, localityId;
     
-    if (!LocationManager.isValidCombination(cityId, localityId)) {
-      return {
-        message: `Please select a valid location from the dropdown.`,
-        nextStep: 'buyer_city'
-      };
+    // Try to parse if it's in cityId:localityId format
+    if (message.includes(':')) {
+      [cityId, localityId] = message.split(':');
+      const validLocation = LocationManager.getFormattedLocation(cityId, localityId);
+      if (validLocation && validLocation !== 'Unknown Location') {
+        formattedLocation = validLocation;
+      }
     }
     
-    const formattedLocation = LocationManager.getFormattedLocation(cityId, localityId);
+    //const formattedLocation = LocationManager.getFormattedLocation(cityId, localityId);
 
     let materialSummary = '';
     if (data.material === 'cement') {
