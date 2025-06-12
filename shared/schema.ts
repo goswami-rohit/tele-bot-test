@@ -39,6 +39,7 @@ export const inquiries = pgTable("inquiries", {
   cementTypes: text("cement_types"), // JSON string of array
   tmtCompany: text("tmt_company"),
   tmtSizes: text("tmt_sizes"), // JSON string of array
+  buyerTeleId: text("buyer_tele_id"),
 });
 
 export const priceResponses = pgTable("price_responses", {

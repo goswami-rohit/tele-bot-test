@@ -340,17 +340,15 @@ export class TelegramBotService {
       message += `\n\n💡 Contact the vendor directly for further negotiations.`;
 
       // Send to buyer (check if they have telegram ID)
-      if (inquiry.platform === 'telegram' && inquiry.userPhone) {
-        // For telegram buyers, you'll need to store their telegram chat ID
-        // This might require modification to how you handle telegram buyers
-        console.log('📱 Would send to telegram buyer:', inquiry.userName);
+      if (inquiry.platform === 'telegram' && inquiry.buyerTeleId) {
+        console.log('📱 Sending to telegram buyer chat ID:', inquiry.buyerTeleId);
+        await this.bot.sendMessage(inquiry.buyerTeleId, message, {
+          parse_mode: 'Markdown'
+        });
+        console.log('✅ Quote sent to buyer successfully');
+      } else {
+        console.log('❌ No telegram chat ID for buyer');
       }
-
-      // Store the price response in database
-      await this.storePriceResponse(inquiryId, vendorTelegramId, rates, gst, delivery);
-
-      console.log('✅ Buyer notification sent for inquiry:', inquiryId);
-
     } catch (error) {
       console.error('❌ Error notifying buyer:', error);
     }
@@ -617,7 +615,8 @@ For your inquiry in ${inquiry.city}
           platform,
           status: 'active',
           vendorsContacted: [],
-          responseCount: 0
+          responseCount: 0,
+          buyerTeleId: platform === 'telegram' ? chatIdOrSessionId.toString() : null,
         };
 
         console.log(`💾 Creating inquiry in storage:`, inquiryData);
