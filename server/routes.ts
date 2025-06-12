@@ -8,7 +8,7 @@ import { telegramBot } from "./bot/telegram";
 import crypto from 'crypto';
 import { Server as SocketIOServer } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
-
+import { LocationManager } from './locationManager';
 
 declare global {
   var io: SocketIOServer | undefined;
@@ -629,6 +629,28 @@ ${message}`;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete API key" });
+    }
+  });
+
+  // Get all locations for dropdown
+  app.get("/api/locations", async (req, res) => {
+    try {
+      const locationData = LocationManager.getLocationData();
+      res.json(locationData);
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      res.status(500).json({ error: "Failed to fetch locations" });
+    }
+  });
+  // Get localities for a specific city (optional endpoint)
+  app.get("/api/locations/:cityId/localities", async (req, res) => {
+    try {
+      const { cityId } = req.params;
+      const localities = LocationManager.getLocalitiesByCity(cityId);
+      res.json(localities);
+    } catch (error) {
+      console.error('Error fetching localities:', error);
+      res.status(500).json({ error: "Failed to fetch localities" });
     }
   });
 
