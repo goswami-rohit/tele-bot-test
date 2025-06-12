@@ -4,19 +4,7 @@ import { conversationFlowB, type ConversationContextB } from "../conversationFlo
 import { conversationFlowV, type ConversationContextV } from "../conversationFlowV";
 import { vendorResponseFlow } from "../vResponseFlow"; // NEW: Import vendor response flow
 import { Server as SocketIOServer } from 'socket.io';
-import cors from 'cors';
 
-app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://mycoco.site',
-    'https://telegram-chat-api.onrender.com',
-    'https://tele-bot-test.onrender.com', 
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
 
 // Add global Socket.io declaration
 declare global {
