@@ -96,6 +96,35 @@ export class DatabaseStorage {
     return vendor || null;
   }
 
+  async getVendorsByMaterialAndCity(material: string, location: string) {
+  try {
+    console.log('🔍 Searching vendors for:', material, 'in location:', location);
+    
+    // First try exact match (locality, city)
+    let vendors = this.vendors.filter(vendor => 
+      vendor.material === material && 
+      vendor.city.toLowerCase() === location.toLowerCase()
+    );
+    
+    // If no exact match, try city-only match
+    if (vendors.length === 0) {
+      const cityOnly = location.split(', ').pop() || location;
+      vendors = this.vendors.filter(vendor => 
+        vendor.material === material && 
+        (vendor.city.toLowerCase() === cityOnly.toLowerCase() ||
+         vendor.city.toLowerCase().includes(cityOnly.toLowerCase()))
+      );
+      console.log('🔍 Fallback city search for:', cityOnly);
+    }
+    
+    console.log('✅ Found vendors:', vendors.length);
+    return vendors;
+  } catch (error) {
+    console.error('Error fetching vendors:', error);
+    return [];
+  }
+}
+
   async updateVendor(vendorId: number, updates: Partial<Vendor>): Promise<Vendor> {
     const [vendor] = await this.db
       .update(vendors)

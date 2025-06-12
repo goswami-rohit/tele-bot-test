@@ -628,8 +628,8 @@ For your inquiry in ${inquiry.city}
         if (data.material === 'both') {
           console.log(`📢 Material is "both" - finding and deduplicating vendors`);
 
-          const cementVendors = await storage.getVendors(data.city, 'cement');
-          const tmtVendors = await storage.getVendors(data.city, 'tmt');
+          const cementVendors = await storage.getVendorsByMaterialAndCity('cement', data.city);
+          const tmtVendors = await storage.getVendorsByMaterialAndCity('tmt', data.city);
 
           // Combine and deduplicate vendors by vendorId
           const allVendors = [...cementVendors, ...tmtVendors];
@@ -643,10 +643,26 @@ For your inquiry in ${inquiry.city}
           await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData, uniqueVendors);
 
         } else {
-          // Single material - use existing logic
-          console.log(`📢 About to notify vendors for inquiry ${inquiryId}`);
-          await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData);
-        }
+          // Single material - find vendors with location matching
+          console.log(`📢 Finding vendors for material "${data.material}" in location "${data.city}"`);
+          
+          const vendors = await storage.getVendorsByMaterialAndCity(data.material, data.city);
+          console.log(`📋 Found ${vendors.length} vendors for ${data.material}`);
+          
+          if (vendors.length === 0) {
+            console.log(`⚠️ No vendors found for material "${data.material}" in city "${data.city}"`);
+            // Try fallback search by city only
+            const cityOnly = data.city.split(', ').pop() || data.city;
+            const fallbackVendors = await storage.getVendorsByMaterialAndCity(data.material, cityOnly);
+            console.log(`🔍 Fallback search found ${fallbackVendors.length} vendors in ${cityOnly}`);
+            
+            if (fallbackVendors.length > 0) {
+              await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData, fallbackVendors);
+            }
+          } else {
+            await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData, vendors);
+          }
+        } // Add this closing bracket
 
       } else if (action === 'register_vendor') {
         const vendorId = `VEN-${Date.now()}`;

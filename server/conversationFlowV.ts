@@ -1,5 +1,6 @@
 //server/conversationFLowB.ts
 import { storage } from "./storage";
+import { LocationManager } from './locationManager';
 
 export interface ConversationContextV {
   chatId: string;
@@ -111,41 +112,52 @@ Reply with 1 or 2 or 3`,
       // Move to company preference based on material
       if (material === 'cement') {
         return {
-          message: `🏭 Do you have any specific cement company preference?
+          message: `🏭 Select cement company preference (reply with number):
 
-Type the company name (e.g., ACC, UltraTech, Ambuja) or reply "Any" if no preference:`,
-          nextStep: 'buyer_cement_company',
-          data: { ...data, material }
+${CEMENT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
+          nextStep: 'buyer_cement_company_select',
+          data: { ...data, material },
+          showOptions: CEMENT_COMPANIES
         };
       } else if (material === 'tmt') {
         return {
-          message: `🏭 Do you have any specific TMT company preference?
+          message: `🏗️ Select TMT company preference (reply with number):
 
-Type the company name (e.g., TATA, JSW, SAIL) or reply "Any" if no preference:`,
-          nextStep: 'buyer_tmt_company',
-          data: { ...data, material }
+${TMT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
+          nextStep: 'buyer_tmt_company_select',
+          data: { ...data, material },
+          showOptions: TMT_COMPANIES
         };
       } else if (material === 'both') {
         return {
-          message: `🏭 Let's start with cement. Do you have any specific cement company preference?
+          message: `🏭 Let's start with cement. Select cement company preference (reply with number):
 
-Type the company name (e.g., ACC, UltraTech, Ambuja) or reply "Any" if no preference:`,
-          nextStep: 'buyer_cement_company',
-          data: { ...data, material }
+${CEMENT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
+          nextStep: 'buyer_cement_company_select',
+          data: { ...data, material },
+          showOptions: CEMENT_COMPANIES
         };
       }
     }
 
-    // NEW: Cement company preference
-    if (step === 'buyer_cement_company') {
-      const cementCompany = message.trim() === '' ? 'Any' : message;
+    // NEW: Cement company selection
+    if (step === 'buyer_cement_company_select') {
+      const selectedIndex = parseInt(message.trim()) - 1;
+      const selectedCompany = CEMENT_COMPANIES[selectedIndex];
+
+      if (!selectedCompany) {
+        return {
+          message: `Please select a valid number (1-${CEMENT_COMPANIES.length})`,
+          nextStep: 'buyer_cement_company_select'
+        };
+      }
 
       return {
         message: `🏗️ Select cement types you need (reply with numbers separated by commas, e.g., "1,3,5"):
 
 ${CEMENT_TYPES.map((type, index) => `${index + 1}. ${type}`).join('\n')}`,
         nextStep: 'buyer_cement_types',
-        data: { ...data, cementCompany },
+        data: { ...data, cementCompany: selectedCompany },
         showOptions: CEMENT_TYPES
       };
     }
@@ -176,20 +188,23 @@ ${CEMENT_TYPES.map((type, index) => `${index + 1}. ${type}`).join('\n')}`,
       // Check if we need TMT info (for "both" material)
       if (data.material === 'both') {
         return {
-          message: `✅ Cement types selected: ${selectedTypes.join(', ')}
+          message: `✅ Cement company: ${data.cementCompany}
+✅ Cement types: ${selectedTypes.join(', ')}
 
-🏭 Now for TMT bars. Do you have any specific TMT company preference?
+🏗️ Now for TMT bars. Select TMT company preference (reply with number):
 
-Type the company name (e.g., TATA, JSW, SAIL) or reply "Any" if no preference:`,
-          nextStep: 'buyer_tmt_company',
-          data: { ...data, cementTypes: selectedTypes }
+${TMT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
+          nextStep: 'buyer_tmt_company_select',
+          data: { ...data, cementTypes: selectedTypes },
+          showOptions: TMT_COMPANIES
         };
       } else {
         // Only cement selected, move to city
         return {
-          message: `✅ Selected: ${selectedTypes.join(', ')}
+          message: `✅ Company: ${data.cementCompany}
+✅ Types: ${selectedTypes.join(', ')}
 
-📍 Which city do you need these in?
+📍 Which city/location do you need these materials in?
 
 Please enter your city name:`,
           nextStep: 'buyer_city',
@@ -205,19 +220,22 @@ Please enter your city name:`,
 
       if (data.material === 'both') {
         return {
-          message: `✅ Cement types selected: ${allCementTypes.join(', ')}
+          message: `✅ Cement company: ${data.cementCompany}
+✅ Cement types: ${allCementTypes.join(', ')}
 
-🏭 Now for TMT bars. Do you have any specific TMT company preference?
+🏗️ Now for TMT bars. Select TMT company preference (reply with number):
 
-Type the company name (e.g., TATA, JSW, SAIL) or reply "Any" if no preference:`,
-          nextStep: 'buyer_tmt_company',
-          data: { ...data, cementTypes: allCementTypes }
+${TMT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
+          nextStep: 'buyer_tmt_company_select',
+          data: { ...data, cementTypes: allCementTypes },
+          showOptions: TMT_COMPANIES
         };
       } else {
         return {
-          message: `✅ Selected: ${allCementTypes.join(', ')}
+          message: `✅ Company: ${data.cementCompany}
+✅ Types: ${allCementTypes.join(', ')}
 
-📍 Which city do you need these in?
+📍 Which city/location do you need these materials in?
 
 Please enter your city name:`,
           nextStep: 'buyer_city',
@@ -226,16 +244,24 @@ Please enter your city name:`,
       }
     }
 
-    // NEW: TMT company preference
-    if (step === 'buyer_tmt_company') {
-      const tmtCompany = message.trim() === '' ? 'Any' : message;
+    // NEW: TMT company selection
+    if (step === 'buyer_tmt_company_select') {
+      const selectedIndex = parseInt(message.trim()) - 1;
+      const selectedCompany = TMT_COMPANIES[selectedIndex];
+
+      if (!selectedCompany) {
+        return {
+          message: `Please select a valid number (1-${TMT_COMPANIES.length})`,
+          nextStep: 'buyer_tmt_company_select'
+        };
+      }
 
       return {
         message: `🔧 Select TMT sizes you need (reply with numbers separated by commas, e.g., "3,5,7"):
 
 ${TMT_SIZES.map((size, index) => `${index + 1}. ${size}`).join('\n')}`,
         nextStep: 'buyer_tmt_sizes',
-        data: { ...data, tmtCompany },
+        data: { ...data, tmtCompany: selectedCompany },
         showOptions: TMT_SIZES
       };
     }
@@ -255,9 +281,10 @@ ${TMT_SIZES.map((size, index) => `${index + 1}. ${size}`).join('\n')}`,
       }
 
       return {
-        message: `✅ TMT sizes selected: ${selectedSizes.join(', ')}
+        message: `✅ TMT company: ${data.tmtCompany}
+✅ TMT sizes: ${selectedSizes.join(', ')}
 
-📍 Which city do you need these materials in?
+📍 Which city/location do you need these materials in?
 
 Please enter your city name:`,
         nextStep: 'buyer_city',
@@ -266,56 +293,120 @@ Please enter your city name:`,
     }
 
     // Updated city step to handle new data structure
-    if (step === 'buyer_city') {
-      const capitalizedCity = this.capitalizeCity(message);
-
-      let materialSummary = '';
-      if (data.material === 'cement') {
-        materialSummary = `Cement: ${data.cementTypes.join(', ')}`;
-      } else if (data.material === 'tmt') {
-        materialSummary = `TMT: ${data.tmtSizes.join(', ')}`;
-      } else if (data.material === 'both') {
-        materialSummary = `Cement: ${data.cementTypes.join(', ')}\nTMT: ${data.tmtSizes.join(', ')}`;
+   if (step === 'buyer_city') {
+  if (context.userType === 'web') {
+    // For web users: expects "cityId:localityId" format
+    let formattedLocation = message;
+    let cityId, localityId;
+    
+    // Try to parse if it's in cityId:localityId format
+    if (message.includes(':')) {
+      [cityId, localityId] = message.split(':');
+      const validLocation = LocationManager.getFormattedLocation(cityId, localityId);
+      if (validLocation && validLocation !== 'Unknown Location') {
+        formattedLocation = validLocation;
       }
+    }
+    
+    //const formattedLocation = LocationManager.getFormattedLocation(cityId, localityId);
 
-      return {
-        message: `📦 How much do you need?
+    let materialSummary = '';
+    if (data.material === 'cement') {
+      materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}`;
+    } else if (data.material === 'tmt') {
+      materialSummary = `TMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
+    } else if (data.material === 'both') {
+      materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}\nTMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
+    }
+
+    return {
+      message: `📦 How much do you need?
 
 Materials requested:
 ${materialSummary}
+📍 Location: ${formattedLocation}
 
 Please specify quantity (For both Cement and TMT if both are selected) (e.g., "50 bags cement or/and 200 pieces or 40kg TMT"):`,
-        nextStep: 'buyer_quantity',
-        data: { ...data, city: capitalizedCity }
-      };
+      nextStep: 'buyer_quantity',
+      data: { ...data, city: formattedLocation, cityId, localityId } // FIX: Use formattedLocation instead of capitalizedCity, add cityId & localityId
+    };
+  } else {
+    // For Telegram users: show available locations
+    const defaults = LocationManager.getDefaults();
+    const defaultLocation = defaults.city && defaults.locality ? 
+      LocationManager.getFormattedLocation(defaults.city.id, defaults.locality.id) : 
+      'Ganeshguri, Guwahati';
+    
+    return {
+      message: `📍 We currently serve ${defaultLocation}.
+
+Type "yes" to continue with this location or "no" if you're in a different area:`,
+      nextStep: 'buyer_city_confirm',
+      data: { ...data, city: defaultLocation, cityId: 'guwahati', localityId: 'ganeshguri' }
+    };
+  }
+}
+
+ // Add confirmation step for Telegram users
+ if (step === 'buyer_city_confirm') {
+  if (message.toLowerCase() === 'yes' || message.toLowerCase() === 'y') {
+    // Continue with default location
+    let materialSummary = '';
+    if (data.material === 'cement') {
+      materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}`;
+    } else if (data.material === 'tmt') {
+      materialSummary = `TMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
+    } else if (data.material === 'both') {
+      materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}\nTMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
     }
 
-    if (step === 'buyer_quantity') {
-      return {
-        message: `📱 Great! Please provide your phone number for vendors to contact you:`,
-        nextStep: 'buyer_phone',
-        data: { ...data, quantity: message }
-      };
-    }
+    return {
+      message: `📦 How much do you need?
 
-    // Updated phone step with detailed summary
-    if (step === 'buyer_phone') {
-      let materialDisplay = '';
-      if (data.material === 'cement') {
-        materialDisplay = `🏗️ Cement Types: ${data.cementTypes.join(', ')}
+Materials requested:
+${materialSummary}
+📍 Location: ${data.city}
+
+Please specify quantity (e.g., "50 bags cement or/and 200 pieces TMT"):`,
+      nextStep: 'buyer_quantity',
+      data: data
+    };
+  } else {
+    return {
+      message: `Sorry, we currently only serve Guwahati area. We'll be expanding to more cities soon!
+
+Type /start to try again or contact us for updates on new service areas.`,
+      nextStep: 'completed'
+    };
+  }
+}
+
+ if (step === 'buyer_quantity') {
+  return {
+    message: `📱 Great! Please provide your phone number for vendors to contact you:`,
+    nextStep: 'buyer_phone',
+    data: { ...data, quantity: message }
+  };
+}
+
+ // Updated phone step with detailed summary
+ if (step === 'buyer_phone') {
+  let materialDisplay = '';
+  if (data.material === 'cement') {
+    materialDisplay = `🏗️ Cement Types: ${data.cementTypes.join(', ')}
 🏭 Company: ${data.cementCompany}`;
-      } else if (data.material === 'tmt') {
-        materialDisplay = `🔧 TMT Sizes: ${data.tmtSizes.join(', ')}
+  } else if (data.material === 'tmt') {
+    materialDisplay = `🔧 TMT Sizes: ${data.tmtSizes.join(', ')}
 🏭 Company: ${data.tmtCompany}`;
-      } else if (data.material === 'both') {
-        materialDisplay = `🏗️ Cement Types: ${data.cementTypes.join(', ')}
+  } else if (data.material === 'both') {
+    materialDisplay = `🏗️ Cement Types: ${data.cementTypes.join(', ')}
 🏭 Cement Company: ${data.cementCompany}
 🔧 TMT Sizes: ${data.tmtSizes.join(', ')}
 🏭 TMT Company: ${data.tmtCompany}`;
-      }
+  }
 
-      return {
-        message: `✅ Perfect! Your inquiry has been created and sent to vendors in ${data.city}.
+  return {
+    message: `✅ Perfect! Your inquiry has been created and sent to vendors in ${data.city}.
 
 📋 **Your Inquiry Summary:**
 ${materialDisplay}
@@ -324,11 +415,11 @@ ${materialDisplay}
 📱 Contact: ${message}
 
 Vendors will send you detailed quotes shortly!`,
-        nextStep: 'completed',
-        action: 'create_inquiry',
-        data: { ...data, phone: message }
-      };
-    }
+    nextStep: 'completed',
+    action: 'create_inquiry',
+    data: { ...data, phone: message }
+  };
+}
 
     // Vendor registration flow
     if (step === 'vendor_company') {
@@ -348,21 +439,63 @@ Vendors will send you detailed quotes shortly!`,
     }
 
     if (step === 'vendor_city') {
-      // Auto-capitalize the city name for vendors too
-      const capitalizedVendorCity = this.capitalizeCity(message);
-
-      return {
-        message: `🏗️ What materials do you supply?
-
-    1 Cement only
-    2 TMT Bars only  
-    3 Both Cement and TMT Bars
-
-    Reply with 1, 2, or 3`,
-        nextStep: 'vendor_materials',
-        data: { ...data, city: capitalizedVendorCity }
-      };
-    }
+  const cities = LocationManager.getCities();
+  
+  return {
+    message: `📍 Select which city you operate in (reply with number):
+${cities.map((city, index) => `${index + 1}. ${city.name}`).join('\n')}`,
+    nextStep: 'vendor_city_select',
+    data: { ...data },
+    showOptions: cities.map(city => city.name)
+  };
+}
+// Add city selection step:
+if (step === 'vendor_city_select') {
+  const cities = LocationManager.getCities();
+  const selectedIndex = parseInt(message.trim()) - 1;
+  const selectedCity = cities[selectedIndex];
+  if (!selectedCity) {
+    return {
+      message: `Please select a valid number (1-${cities.length})`,
+      nextStep: 'vendor_city_select'
+    };
+  }
+  return {
+    message: `🏘️ Select which locality you operate in (reply with number):
+${selectedCity.localities.map((locality, index) => `${index + 1}. ${locality.name}`).join('\n')}`,
+    nextStep: 'vendor_locality_select',
+    data: { ...data, selectedCityId: selectedCity.id, selectedCityName: selectedCity.name },
+    showOptions: selectedCity.localities.map(locality => locality.name)
+  };
+}
+// Add locality selection step:
+if (step === 'vendor_locality_select') {
+  const cities = LocationManager.getCities();
+  const selectedCity = cities.find(city => city.id === data.selectedCityId);
+  
+  if (!selectedCity) {
+    return {
+      message: `Error: Please start over.`,
+      nextStep: 'vendor_city'
+    };
+  }
+  const selectedIndex = parseInt(message.trim()) - 1;
+  const selectedLocality = selectedCity.localities[selectedIndex];
+  if (!selectedLocality) {
+    return {
+      message: `Please select a valid number (1-${selectedCity.localities.length})`,
+      nextStep: 'vendor_locality_select'
+    };
+  }
+  // Store as "locality, city" format
+  const fullLocation = `${selectedLocality.name}, ${selectedCity.name}`;
+  return {
+    message: `✅ Great! You'll serve customers in ${fullLocation}.
+📱 Please provide your contact phone number:`,
+    nextStep: 'vendor_phone',
+    data: { ...data, city: fullLocation } // Store full "locality, city" string
+  };
+}
 
     if (step === 'vendor_materials') {
       let materials: string[] = [];
