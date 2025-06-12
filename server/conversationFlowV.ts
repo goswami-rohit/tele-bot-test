@@ -446,7 +446,10 @@ Vendors will send you detailed quotes shortly!`,
 ${cities.map((city, index) => `${index + 1}. ${city.name}`).join('\n')}`,
     nextStep: 'vendor_city_select',
     data: { ...data },
-    showOptions: cities.map(city => city.name)
+    inlineKeyboard: cities.map((city, index) => [{
+      text: city.name,
+      callback_data: `city_${city.id}`
+    }])
   };
 }
 // Add city selection step:
@@ -465,7 +468,10 @@ if (step === 'vendor_city_select') {
 ${selectedCity.localities.map((locality, index) => `${index + 1}. ${locality.name}`).join('\n')}`,
     nextStep: 'vendor_locality_select',
     data: { ...data, selectedCityId: selectedCity.id, selectedCityName: selectedCity.name },
-    showOptions: selectedCity.localities.map(locality => locality.name)
+    inlineKeyboard: selectedCity.localities.map((locality, index) => [{
+      text: locality.name,
+      callback_data: `locality_${locality.id}`
+    }])
   };
 }
 // Add locality selection step:
