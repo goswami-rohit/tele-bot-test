@@ -748,3 +748,13 @@ Please provide your detailed quote:`;
   getStatus() {
     return {
       isActive: this.isActive,
+      activeSessions: this.userSessions.size + this.webSessions.size,
+      telegramSessions: this.userSessions.size,
+      webSessions: this.webSessions.size,
+      botConnected: !!this.bot
+    };
+  }
+} 
+export const telegramBot = new TelegramBotService({
+  token: process.env.TELEGRAM_BOT_TOKEN || ""
+});
