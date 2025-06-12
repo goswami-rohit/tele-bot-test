@@ -5,9 +5,6 @@ import { setupVite, serveStatic, log } from "./vite";
 import cors from 'cors';
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-
 app.use(cors({
   origin: [
     'http://localhost:3000',
@@ -19,6 +16,9 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
   const start = Date.now();

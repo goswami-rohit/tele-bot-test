@@ -9,19 +9,7 @@ import crypto from 'crypto';
 import { Server as SocketIOServer } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { LocationManager } from './locationManager';
-import cors from 'cors';
 
-app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://mycoco.site',
-    'https://telegram-chat-api.onrender.com',
-    'https://tele-bot-test.onrender.com', 
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
 
 declare global {
   var io: SocketIOServer | undefined;
