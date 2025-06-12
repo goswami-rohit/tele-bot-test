@@ -295,7 +295,7 @@ ${TMT_SIZES.map((size, index) => `${index + 1}. ${size}`).join('\n')}`,
         message: `✅ TMT company: ${data.tmtCompany}
 ✅ TMT sizes: ${selectedSizes.join(', ')}
 
-📍 Which city do you need these materials in?
+📍 Which city/location do you need these materials in?
 
 Please enter your city name:`,
         nextStep: 'buyer_city',
