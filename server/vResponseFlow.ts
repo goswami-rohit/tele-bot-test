@@ -69,7 +69,7 @@ export class VendorResponseFlow {
             // Create buttons for each cement type
             const buttons = inquiry.cementTypes.map((type: string) => ({
                 text: `💰 ${type}`,
-                callback_data:`rate_cement_${encodeURIComponent(type)}_${inquiry.inquiryId}`
+                callback_data: `rate_cement_${encodeURIComponent(type)}_${inquiry.inquiryId}`
             }));
 
             // Split into rows of 1 button each for better readability
@@ -145,19 +145,18 @@ export class VendorResponseFlow {
         // Store what we're waiting for
         const state = this.vendorStates.get(vendorTelegramId);
         if (state) {
-            state.step = 'entering_rate';
+            state.step = 'awaiting_rate_input'; // MAKE SURE THIS IS SET
             state.data.currentItem = { materialType, itemName };
             this.vendorStates.set(vendorTelegramId, state);
+
+            console.log('🔍 DEBUG - Set state to awaiting_rate_input for:', itemName);
         }
-
         return {
-            message: `💰 Enter rate for ** ${itemName} **:
-
-    Examples:
+            message: `💰 Enter rate for **${itemName}**:
+Examples:
 • Type "250" for ₹250 per unit
 • Type "0" if this item is unavailable
-
-Just type the number: `,
+Just type the number:`,
             nextStep: 'awaiting_rate_input'
         };
     }
@@ -462,12 +461,16 @@ Example: 400
 
         switch (state.step) {
             case 'awaiting_rate_input':
+            case 'entering_rate': // ADD THIS CASE
                 return this.processRateInput(vendorTelegramId, text);
             case 'awaiting_gst_input':
+            case 'entering_gst': // ADD THIS CASE
                 return this.processGstInput(vendorTelegramId, text);
             case 'awaiting_delivery_input':
+            case 'entering_delivery': // ADD THIS CASE
                 return this.processDeliveryInput(vendorTelegramId, text);
             default:
+                console.log('🔍 DEBUG - Unexpected step:', state.step);
                 return {
                     message: "❌ Unexpected input. Please use the buttons provided.",
                     nextStep: state.step
