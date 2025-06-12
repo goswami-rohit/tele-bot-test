@@ -96,32 +96,50 @@ export class DatabaseStorage {
     return vendor || null;
   }
 
-  async getVendorsByMaterialAndCity(material: string, location: string) {
+  async getVendorsByMaterialAndCity(material: string, city: string) {
   try {
-    console.log('🔍 Searching vendors for:', material, 'in location:', location);
+    console.log(`🔍 Searching vendors for: ${material} in location: ${city}`);
     
-    // First try exact match (locality, city)
-    let vendors = this.vendors.filter(vendor => 
-      vendor.material === material && 
-      vendor.city.toLowerCase() === location.toLowerCase()
-    );
+    // Get all vendors first
+    const allVendors = await this.db.select().from(vendors);
+    console.log(`📋 Total vendors in database: ${allVendors.length}`);
     
-    // If no exact match, try city-only match
-    if (vendors.length === 0) {
-      const cityOnly = location.split(', ').pop() || location;
-      vendors = this.vendors.filter(vendor => 
-        vendor.material === material && 
-        (vendor.city.toLowerCase() === cityOnly.toLowerCase() ||
-         vendor.city.toLowerCase().includes(cityOnly.toLowerCase()))
-      );
-      console.log('🔍 Fallback city search for:', cityOnly);
+    // Add null check and ensure we have an array
+    if (!allVendors || !Array.isArray(allVendors)) {
+      console.log(`❌ No vendors array returned from database`);
+      return [];
     }
     
-    console.log('✅ Found vendors:', vendors.length);
-    return vendors;
+    // Filter vendors by material and city
+    const filteredVendors = allVendors.filter(vendor => {
+      // Check if vendor has materials array
+      if (!vendor.materials || !Array.isArray(vendor.materials)) {
+        console.log(`⚠️ Vendor ${vendor.name} has invalid materials:`, vendor.materials);
+        return false;
+      }
+      
+      // Check material match
+      const materialMatch = vendor.materials.includes(material);
+      
+      // Check city match (exact or partial)
+      const cityMatch = vendor.city && (
+        vendor.city.includes(city) || 
+        city.includes(vendor.city) ||
+        vendor.city.toLowerCase().includes(city.toLowerCase()) ||
+        city.toLowerCase().includes(vendor.city.toLowerCase())
+      );
+      
+      console.log(`🔍 Vendor ${vendor.name}: material=${materialMatch}, city=${cityMatch}, materials=${vendor.materials}, vendorCity=${vendor.city}`);
+      
+      return materialMatch && cityMatch;
+    });
+    
+    console.log(`✅ Found ${filteredVendors.length} matching vendors`);
+    return filteredVendors;
+    
   } catch (error) {
     console.error('Error fetching vendors:', error);
-    return [];
+    return []; // Return empty array instead of undefined
   }
 }
 
