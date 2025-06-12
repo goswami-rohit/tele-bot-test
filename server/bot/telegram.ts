@@ -2,6 +2,7 @@ import TelegramBot from 'node-telegram-bot-api';
 import { storage } from "../storage";
 import { conversationFlowB, type ConversationContextB } from "../conversationFlowB";
 import { conversationFlowV, type ConversationContextV } from "../conversationFlowV";
+import { vendorResponseFlow } from "../vResponseFlow"; // NEW: Import vendor response flow
 import { Server as SocketIOServer } from 'socket.io';
 
 // Add global Socket.io declaration
@@ -17,9 +18,9 @@ export class TelegramBotService {
   private bot: TelegramBot | null = null;
   private isActive: boolean = true;
   private userSessions: Map<string, any> = new Map();
-  private webSessions: Map<string, any> = new Map(); // NEW: Web session storage
+  private webSessions: Map<string, any> = new Map();
   private token: string;
-  private vendorInputState: Map<string, any> = new Map();
+  // REMOVED: private vendorInputState: Map<string, any> = new Map(); (now handled by vendorResponseFlow)
 
   constructor(config: TelegramBotConfig) {
     this.token = config.token;
@@ -107,26 +108,10 @@ export class TelegramBotService {
             }
           }
 
-          // Only create notifications for important business events
-          try {
-            if (msg.text.includes('$') || msg.text.includes('rate') || msg.text.includes('quote') || msg.text.includes('price')) {
-              await storage.createNotification({
-                message: `💰 Vendor responded with quote: "${msg.text}"`,
-                type: 'vendor_response'
-              });
-            } else if (msg.text.includes('need') || msg.text.includes('looking for') || msg.text.includes('inquiry') || msg.text.includes('quote me')) {
-              await storage.createNotification({
-                message: `🔍 New inquiry received: "${msg.text}"`,
-                type: 'new_inquiry'
-              });
-            }
-          } catch (err) {
-            console.error('Failed to create notification:', err);
-          }
-
           this.handleIncomingMessage(msg);
         });
 
+        // UPDATED: Enhanced callback query handler for vendor response flow
         this.bot.on('callback_query', async (query) => {
           try {
             const data = query.data;
@@ -134,13 +119,20 @@ export class TelegramBotService {
 
             console.log(`🔘 Callback query received from ${chatId}:`, data);
 
+            // NEW: Handle vendor response flow callbacks
             if (data.startsWith('rate_custom_')) {
-              await this.handleCustomRateButton(query, data);
+              await this.handleVendorRateStart(query, data);
+            } else if (data.startsWith('rate_cement_') || data.startsWith('rate_tmt_')) {
+              await this.handleVendorTypeRateEntry(query, data);
+            } else if (data.startsWith('rates_complete_')) {
+              await this.handleVendorRatesComplete(query, data);
             } else if (data.startsWith('gst_')) {
-              await this.handleGstSelection(query, data);
+              await this.handleVendorGstSelection(query, data);
             } else if (data.startsWith('delivery_')) {
-              await this.handleDeliverySelection(query, data);
+              await this.handleVendorDeliverySelection(query, data);
             }
+
+            await this.bot.answerCallbackQuery(query.id);
           } catch (error) {
             console.error('❌ Error handling callback query:', error);
           }
@@ -238,15 +230,15 @@ export class TelegramBotService {
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    // NEW: Check if vendor is in input mode first
-    const inputState = this.vendorInputState.get(chatId.toString());
-    if (inputState) {
-      await this.handleVendorInput(msg, inputState);
+    // NEW: Check if vendor is in response flow first
+    const vendorState = vendorResponseFlow.getVendorState(chatId.toString());
+    if (vendorState) {
+      const response = await vendorResponseFlow.processTextInput(chatId.toString(), text);
+      await this.sendVendorResponse(chatId, response);
       return;
     }
-    // Handle vendor rate response (keep your existing logic)
-    
-    // Get or create session
+
+    // Get or create session for regular conversation flow
     let session = this.userSessions.get(chatId.toString());
     if (!session || text === '/start') {
       session = { step: 'user_type', userType: 'telegram' };
@@ -277,8 +269,223 @@ export class TelegramBotService {
     await this.sendMessage(chatId, response.message);
   }
 
-  // NEW: Handle completion actions for both web and telegram users
-  // Update the handleCompletionAction method with better debugging:
+  // NEW: Send vendor response with optional keyboard
+  private async sendVendorResponse(chatId: number, response: any) {
+    if (response.action === 'send_quote_to_buyer') {
+      await this.processCompleteQuoteSubmission(response.data);
+    }
+
+    if (response.keyboard) {
+      await this.bot.sendMessage(chatId, response.message, {
+        reply_markup: response.keyboard,
+        parse_mode: 'Markdown'
+      });
+    } else {
+      await this.sendMessage(chatId, response.message);
+    }
+  }
+
+  // NEW: Handle vendor rate flow start
+  private async handleVendorRateStart(query: any, data: string) {
+    const chatId = query.message.chat.id;
+    const inquiryId = data.replace('rate_custom_', '');
+
+    console.log(`🎯 Starting vendor rate flow for inquiry: ${inquiryId}`);
+
+    const response = await vendorResponseFlow.startRateFlow(chatId.toString(), inquiryId);
+    await this.sendVendorResponse(chatId, response);
+  }
+
+  // NEW: Handle specific type rate entry
+  private async handleVendorTypeRateEntry(query: any, data: string) {
+    const chatId = query.message.chat.id;
+    const parts = data.split('_');
+    const materialType = parts[1]; // 'cement' or 'tmt'
+    const itemName = decodeURIComponent(parts[2]);
+    const inquiryId = parts[3];
+
+    console.log(`🎯 Vendor entering rate for ${materialType}: ${itemName}`);
+
+    const response = await vendorResponseFlow.handleRateEntry(
+      chatId.toString(),
+      materialType as 'cement' | 'tmt',
+      itemName,
+      inquiryId
+    );
+    await this.sendVendorResponse(chatId, response);
+  }
+
+  // NEW: Handle rates completion
+  private async handleVendorRatesComplete(query: any, data: string) {
+    const chatId = query.message.chat.id;
+    const inquiryId = data.replace('rates_complete_', '');
+
+    console.log(`🎯 Vendor completing rates for inquiry: ${inquiryId}`);
+
+    const response = await vendorResponseFlow.handleRatesComplete(chatId.toString(), inquiryId);
+    await this.sendVendorResponse(chatId, response);
+  }
+
+  // NEW: Handle GST selection
+  private async handleVendorGstSelection(query: any, data: string) {
+    const chatId = query.message.chat.id;
+    const parts = data.split('_');
+    const gst = parts[1];
+    const inquiryId = parts[2];
+
+    console.log(`🎯 Vendor GST selection: ${gst}% for inquiry: ${inquiryId}`);
+
+    const response = await vendorResponseFlow.handleGstSelection(chatId.toString(), gst, inquiryId);
+    await this.sendVendorResponse(chatId, response);
+  }
+
+  // NEW: Handle delivery selection
+  private async handleVendorDeliverySelection(query: any, data: string) {
+    const chatId = query.message.chat.id;
+    const parts = data.split('_');
+    const delivery = parts[1];
+    const inquiryId = parts[2];
+
+    console.log(`🎯 Vendor delivery selection: ${delivery} for inquiry: ${inquiryId}`);
+
+    const response = await vendorResponseFlow.handleDeliverySelection(chatId.toString(), delivery, inquiryId);
+    await this.sendVendorResponse(chatId, response);
+  }
+
+  // NEW: Process complete quote submission
+  private async processCompleteQuoteSubmission(data: any) {
+    try {
+      console.log(`📤 Processing complete quote submission:`, data);
+
+      const vendor = await storage.getVendorByTelegramId(data.vendorTelegramId);
+      if (!vendor) {
+        console.error(`❌ Vendor not found for Telegram ID: ${data.vendorTelegramId}`);
+        return;
+      }
+
+      // Remove suffix to find original inquiry
+      let originalInquiryId = data.inquiryId;
+      if (originalInquiryId.includes('-CEMENT') || originalInquiryId.includes('-TMT')) {
+        originalInquiryId = originalInquiryId.replace('-CEMENT', '').replace('-TMT', '');
+      }
+
+      const inquiry = await storage.getInquiryById(originalInquiryId);
+      if (!inquiry) {
+        console.error(`❌ Inquiry not found: ${originalInquiryId}`);
+        return;
+      }
+
+      // Store price responses for each material type and item
+      for (const material of Object.keys(data.rates)) {
+        const materialRates = data.rates[material];
+        for (const item of Object.keys(materialRates)) {
+          const rate = materialRates[item];
+          if (rate > 0) { // Only store available items
+            await storage.createPriceResponse({
+              vendorId: vendor.vendorId,
+              inquiryId: originalInquiryId,
+              material: `${material} - ${item}`,
+              price: rate.toString(),
+              gst: data.gst.toString(),
+              deliveryCharge: data.delivery.toString()
+            });
+          }
+        }
+      }
+
+      console.log(`✅ Price responses stored for vendor ${vendor.name}`);
+
+      await storage.incrementInquiryResponses(originalInquiryId);
+
+      // Send detailed quote to buyer
+      await this.sendDetailedQuoteToBuyer(inquiry, data, vendor);
+
+      // Create notification
+      try {
+        await storage.createNotification({
+          message: `✅ Detailed vendor quote received for inquiry #${originalInquiryId}`,
+          type: 'vendor_quote_confirmed'
+        });
+      } catch (err) {
+        console.error('Failed to create notification:', err);
+      }
+
+    } catch (error) {
+      console.error('❌ Error processing complete quote submission:', error);
+    }
+  }
+
+  // NEW: Send detailed quote to buyer
+  private async sendDetailedQuoteToBuyer(inquiry: any, quoteData: any, vendor: any) {
+    let buyerMessage = `🏗️ **New Quote Received!**
+
+For your inquiry in ${inquiry.city}
+📦 Quantity: ${inquiry.quantity}
+
+💼 **Vendor: ${vendor.name}**
+📞 Contact: ${vendor.phone}
+
+💰 **Rates:**`;
+
+    // Add detailed rates for each material type
+    Object.keys(quoteData.rates).forEach(material => {
+      const materialRates = quoteData.rates[material];
+      buyerMessage += `\n\n**${material.toUpperCase()}:**`;
+      Object.keys(materialRates).forEach(item => {
+        const rate = materialRates[item];
+        if (rate === 0) {
+          buyerMessage += `\n• ${item}: **Unavailable**`;
+        } else {
+          buyerMessage += `\n• ${item}: **₹${rate} per unit**`;
+        }
+      });
+    });
+
+    buyerMessage += `\n\n📊 GST: ${quoteData.gst}%`;
+    buyerMessage += `\n🚚 Delivery: ${quoteData.delivery === 0 ? 'Free' : '₹' + quoteData.delivery}`;
+    buyerMessage += `\n\nInquiry ID: ${inquiry.inquiryId}`;
+    buyerMessage += `\n\nMore quotes may follow from other vendors!`;
+
+    try {
+      if (inquiry.platform === 'telegram') {
+        await this.sendMessage(parseInt(inquiry.userPhone), buyerMessage);
+      } else if (inquiry.platform === 'web') {
+        // Send to web buyer via Socket.io
+        const sessionId = inquiry.userPhone;
+        console.log(`🌐 Sending detailed quote to web session: ${sessionId}`);
+
+        if (global.io) {
+          global.io.to(`session-${sessionId}`).emit('bot-message', {
+            sessionId,
+            message: buyerMessage,
+            timestamp: new Date(),
+            senderType: 'bot'
+          });
+          console.log(`✅ Detailed quote sent to web session: ${sessionId}`);
+
+          // Also store in web session
+          const session = this.webSessions.get(sessionId);
+          if (session) {
+            session.messages.push({
+              senderType: 'bot',
+              message: buyerMessage,
+              timestamp: new Date()
+            });
+            this.webSessions.set(sessionId, session);
+          }
+        } else {
+          console.error('❌ Socket.io not available for quote delivery');
+        }
+      }
+
+      console.log(`✅ Detailed quote sent to buyer for inquiry ${inquiry.inquiryId} via ${inquiry.platform}`);
+
+    } catch (error) {
+      console.error('Error sending detailed quote to buyer:', error);
+    }
+  }
+
+  // UPDATED: Handle completion actions for both web and telegram users
   async handleCompletionAction(action: string, data: any, chatIdOrSessionId: string | number, platform: 'telegram' | 'web') {
     console.log(`🎯 handleCompletionAction called:`, { action, data, chatIdOrSessionId, platform });
 
@@ -286,14 +493,21 @@ export class TelegramBotService {
       if (action === 'create_inquiry') {
         const inquiryId = `INQ-${Date.now()}`;
         console.log(`📝 Creating inquiry with ID: ${inquiryId}`);
+
         // For web users, store sessionId as userPhone for tracking
         const userPhone = platform === 'web' ? chatIdOrSessionId.toString() : data.phone;
         console.log(`📞 User phone/session: ${userPhone}, Platform: ${platform}`);
+
+        // Create inquiry data with all the new fields
         const inquiryData = {
           inquiryId,
           userName: platform === 'web' ? 'Web User' : `User ${chatIdOrSessionId}`,
           userPhone,
           material: data.material,
+          cementCompany: data.cementCompany,
+          cementTypes: data.cementTypes,
+          tmtCompany: data.tmtCompany,
+          tmtSizes: data.tmtSizes,
           quantity: data.quantity || 'Not specified',
           city: data.city,
           platform,
@@ -302,38 +516,34 @@ export class TelegramBotService {
           responseCount: 0
         };
 
-
         console.log(`💾 Creating inquiry in storage:`, inquiryData);
         await storage.createInquiry(inquiryData);
         console.log(`✅ Inquiry created in storage`);
 
-        // Handle "both" material case by notifying both cement and TMT vendors
-        if (data.material === 'both' || data.material === ' Both Cement and TMT Bars') {
-          console.log(`📢 Material is "both" - notifying both cement and/or TMT vendors`);
+        // Handle "both" material case with deduplication
+        if (data.material === 'both') {
+          console.log(`📢 Material is "both" - finding and deduplicating vendors`);
 
-          // Notify cement vendors
-          const cementData = { ...data, material: 'cement', phone: data.phone };
-          console.log(`📢 Notifying cement vendors for inquiry ${inquiryId}`);
-          await this.notifyVendorsOfNewInquiry(inquiryId + '-CEMENT', cementData);
+          const cementVendors = await storage.getVendors(data.city, 'cement');
+          const tmtVendors = await storage.getVendors(data.city, 'tmt');
 
-          // Notify TMT vendors
-          const tmtData = { ...data, material: 'tmt', phone: data.phone };
-          console.log(`📢 Notifying TMT vendors for inquiry ${inquiryId}`);
-          await this.notifyVendorsOfNewInquiry(inquiryId + '-TMT', tmtData);
+          // Combine and deduplicate vendors by vendorId
+          const allVendors = [...cementVendors, ...tmtVendors];
+          const uniqueVendors = allVendors.filter((vendor, index, self) =>
+            index === self.findIndex(v => v.vendorId === vendor.vendorId)
+          );
 
-          console.log(`✅ Both cement and TMT vendor notifications completed`);
+          console.log(`📋 Found ${cementVendors.length} cement + ${tmtVendors.length} TMT = ${uniqueVendors.length} unique vendors`);
+
+          // Send to unique vendors with complete inquiry data
+          await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData, uniqueVendors);
+
         } else {
           // Single material - use existing logic
           console.log(`📢 About to notify vendors for inquiry ${inquiryId}`);
-          console.log(`📋 Inquiry data for vendor notification:`, {
-            material: data.material,
-            city: data.city,
-            quantity: data.quantity,
-            phone: data.phone
-          });
-          await this.notifyVendorsOfNewInquiry(inquiryId, data);
-          console.log(`✅ Vendor notification completed for inquiry ${inquiryId}`);
+          await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData);
         }
+
       } else if (action === 'register_vendor') {
         const vendorId = `VEN-${Date.now()}`;
         console.log(`🏢 Registering vendor with ID: ${vendorId}`);
@@ -358,145 +568,57 @@ export class TelegramBotService {
     }
   }
 
-  // NEW: Get web session messages (for API)
-  getWebSessionMessages(sessionId: string): any[] {
-    const session = this.webSessions.get(sessionId);
-    return session ? session.messages : [];
-  }
-
-  private async processVendorRateSubmission(chatId: number, rateData: any) {
-    try {
-      const vendor = await storage.getVendorByTelegramId(chatId.toString());
-      if (!vendor) {
-        console.log(`❌ Vendor not found for chat ID: ${chatId}`);
-        return;
-      }
-
-      // Fix: Remove suffix to find original inquiry
-      let originalInquiryId = rateData.inquiryId;
-      if (originalInquiryId.includes('-CEMENT') || originalInquiryId.includes('-TMT')) {
-        originalInquiryId = originalInquiryId.replace('-CEMENT', '').replace('-TMT', '');
-      }
-
-      const inquiry = await storage.getInquiryById(originalInquiryId);
-      if (!inquiry) {
-        console.log(`❌ Inquiry not found: ${originalInquiryId}`);
-        return;
-      }
-
-      await storage.createPriceResponse({
-        vendorId: vendor.vendorId,
-        inquiryId: rateData.inquiryId,
-        material: inquiry.material,
-        price: rateData.rate.toString(),
-        gst: rateData.gst.toString(),
-        deliveryCharge: rateData.delivery.toString()
-      });
-
-      console.log(`✅ Rate saved for vendor ${vendor.name}`);
-
-      await storage.incrementInquiryResponses(rateData.inquiryId);
-
-      // Send to buyer (both web and telegram)
-      await this.sendCompiledQuoteToBuyer(inquiry, rateData, vendor);
-
-    } catch (error) {
-      console.error('Error processing vendor rate:', error);
-    }
-  }
-
-  // UPDATED: Now handles both telegram and web users
-  private async sendCompiledQuoteToBuyer(inquiry: any, rateData: any, vendor: any) {
-    const buyerMessage = `🏗️ **New Quote Received!**
-
-For your inquiry: ${inquiry.material.toUpperCase()}
-📍 City: ${inquiry.city}
-📦 Quantity: ${inquiry.quantity}
-
-💼 **Vendor: ${vendor.name}**
-💰 Rate: ₹${rateData.rate} per ${rateData.unit}
-📊 GST: ${rateData.gst}%
-🚚 Delivery: ₹${rateData.delivery}
-📞 Contact: ${vendor.phone}
-
-Inquiry ID: ${inquiry.inquiryId}
-
-More quotes may follow from other vendors!`;
-
-    try {
-      if (inquiry.platform === 'telegram') {
-        await this.sendMessage(parseInt(inquiry.userPhone), buyerMessage);
-      } else if (inquiry.platform === 'web') {
-        // NEW: Send to web buyer via Socket.io
-        const sessionId = inquiry.userPhone; // For web users, userPhone contains sessionId
-        console.log(`🌐 Sending quote to web session: ${sessionId}`);
-
-        if (global.io) {
-          global.io.to(`session-${sessionId}`).emit('bot-message', {
-            sessionId,
-            message: buyerMessage,
-            timestamp: new Date(),
-            senderType: 'bot'
-          });
-          console.log(`✅ Quote sent to web session: ${sessionId}`);
-
-          // Also store in web session
-          const session = this.webSessions.get(sessionId);
-          if (session) {
-            session.messages.push({
-              senderType: 'bot',
-              message: buyerMessage,
-              timestamp: new Date()
-            });
-            this.webSessions.set(sessionId, session);
-            console.log(`💾 Quote stored in web session: ${sessionId}`);
-          }
-        } else {
-          console.error('❌ Socket.io not available for quote delivery');
-        }
-      }
-
-      console.log(`✅ Quote sent to buyer for inquiry ${inquiry.inquiryId} via ${inquiry.platform}`);
-
-      try {
-        await storage.createNotification({
-          message: `📤 Quote forwarded to buyer for inquiry #${inquiry.inquiryId}`,
-          type: 'quote_sent_to_buyer'
-        });
-      } catch (err) {
-        console.error('Failed to create notification:', err);
-      }
-    } catch (error) {
-      console.error('Error sending quote to buyer:', error);
-    }
-  }
-
-  // PRESERVE THIS EXACTLY - This is what was working for vendor notifications
-  private async notifyVendorsOfNewInquiry(inquiryId: string, inquiryData: any) {
+  // UPDATED: Enhanced vendor notification with detailed inquiry data
+  private async notifyVendorsOfNewInquiry(inquiryId: string, inquiryData: any, vendorsOverride?: any[]) {
     try {
       console.log(`🔍 notifyVendorsOfNewInquiry called with:`, { inquiryId, inquiryData });
-      console.log(`🔍 Looking for vendors in city: "${inquiryData.city}", material: "${inquiryData.material}"`);
 
-      const vendors = await storage.getVendors(inquiryData.city, inquiryData.material);
-      console.log(`📋 Found ${vendors.length} vendors:`, vendors.map(v => ({ name: v.name, telegramId: v.telegramId, city: v.city, materials: v.materials })));
+      let vendors = vendorsOverride;
+      if (!vendors) {
+        vendors = await storage.getVendors(inquiryData.city, inquiryData.material);
+      }
+
+      console.log(`📋 Found ${vendors.length} vendors:`, vendors.map(v => ({ name: v.name, telegramId: v.telegramId })));
 
       if (vendors.length === 0) {
         console.log(`⚠️ No vendors found for material "${inquiryData.material}" in city "${inquiryData.city}"`);
         return;
       }
+
       for (const vendor of vendors) {
         if (vendor.telegramId) {
           console.log(`📤 Sending inquiry to vendor: ${vendor.name} (Telegram ID: ${vendor.telegramId})`);
 
+          // Build detailed message with material specifications
+          let materialDetails = '';
+          if (inquiryData.material === 'cement') {
+            materialDetails = `🏗️ **Cement Required:**
+Company: ${inquiryData.cementCompany}
+Types: ${inquiryData.cementTypes.join(', ')}`;
+          } else if (inquiryData.material === 'tmt') {
+            materialDetails = `🔧 **TMT Required:**
+Company: ${inquiryData.tmtCompany}
+Sizes: ${inquiryData.tmtSizes.join(', ')}`;
+          } else if (inquiryData.material === 'both') {
+            materialDetails = `🏗️ **Cement Required:**
+Company: ${inquiryData.cementCompany}
+Types: ${inquiryData.cementTypes.join(', ')}
+
+🔧 **TMT Required:**
+Company: ${inquiryData.tmtCompany}
+Sizes: ${inquiryData.tmtSizes.join(', ')}`;
+          }
+
           const vendorMessage = `🆕 **NEW INQUIRY ALERT!**
 📋 Inquiry ID: ${inquiryId}
-🏗️ Material: ${inquiryData.material.toUpperCase()}
 📍 City: ${inquiryData.city}
-📦 Quantity: ${inquiryData.quantity || 'Not specified'}
+📦 Quantity: ${inquiryData.quantity}
 📱 Buyer Contact: ${inquiryData.phone || 'Web User'}
-Please Provide your Quote: `;
 
-          // Replace the keyboard with this:
+${materialDetails}
+
+Please provide your detailed quote:`;
+
           const rateKeyboard = {
             inline_keyboard: [
               [
@@ -504,6 +626,7 @@ Please Provide your Quote: `;
               ]
             ]
           };
+
           try {
             await this.bot.sendMessage(parseInt(vendor.telegramId), vendorMessage, {
               reply_markup: rateKeyboard,
@@ -524,193 +647,10 @@ Please Provide your Quote: `;
     }
   }
 
-  async handleCustomRateButton(query: any, data: string) {
-    const chatId = query.message.chat.id;
-    const inquiryId = data.replace('rate_custom_', '');
-
-    // Store that we're waiting for custom rate from this vendor
-    this.vendorInputState.set(chatId.toString(), {
-      waitingFor: 'rate',
-      inquiryId: inquiryId,
-      step: 'rate',
-      data: {}
-    });
-
-    await this.bot.sendMessage(chatId, `💰 Please enter your rate per unit:
-
-Example: 250
-(Just type the number, I'll add ₹ and "per unit")`);
-
-    await this.bot.answerCallbackQuery(query.id);
-  }
-
-  async handleGstSelection(query: any, data: string) {
-    const chatId = query.message.chat.id;
-    const parts = data.split('_'); // gst_18_INQ-123_250
-    const gst = parts[1];
-    const inquiryId = parts[2];
-    const rate = parts[3];
-
-    if (gst === 'custom') {
-      this.vendorInputState.set(chatId.toString(), {
-        waitingFor: 'gst',
-        inquiryId: inquiryId,
-        step: 'gst',
-        data: { rate }
-      });
-
-      await this.bot.sendMessage(chatId, `📊 Please enter GST percentage:
-
-Example: 18
-(Just type the number, I'll add %)`);
-    } else {
-      // Fixed GST selected
-      await this.showDeliveryKeyboard(chatId, inquiryId, rate, gst);
-    }
-
-    await this.bot.answerCallbackQuery(query.id);
-  }
-
-  async handleDeliverySelection(query: any, data: string) {
-    const chatId = query.message.chat.id;
-    const parts = data.split('_'); // delivery_0_INQ-123_250_18 or delivery_custom_INQ-123_250_18
-    const delivery = parts[1];
-    const inquiryId = parts[2];
-    const rate = parts[3];
-    const gst = parts[4];
-
-    if (delivery === 'custom') {
-      this.vendorInputState.set(chatId.toString(), {
-        waitingFor: 'delivery',
-        inquiryId: inquiryId,
-        step: 'delivery',
-        data: { rate, gst }
-      });
-
-      await this.bot.sendMessage(chatId, `🚚 Please enter delivery charge:
-
-Example: 400
-(Just type the number for delivery charge, or 0 for free delivery)`);
-    } else {
-      // Fixed delivery selected
-      await this.processCompleteQuote(chatId, inquiryId, rate, gst, delivery);
-    }
-
-    await this.bot.answerCallbackQuery(query.id);
-  }
-
-  async showGstKeyboard(chatId: number, inquiryId: string, rate: string) {
-    const gstMessage = `✅ Rate set: ₹${rate} per unit
-
-What's your GST percentage?`;
-
-    const gstKeyboard = {
-      inline_keyboard: [
-        [
-          { text: "📝 Enter Custom GST%", callback_data: `gst_custom_${inquiryId}_${rate}` }
-        ]
-      ]
-    };
-
-    await this.bot.sendMessage(chatId, gstMessage, {
-      reply_markup: gstKeyboard
-    });
-  }
-
-  async showDeliveryKeyboard(chatId: number, inquiryId: string, rate: string, gst: string) {
-    const deliveryMessage = `✅ GST set: ${gst}%
-
-What's your delivery charge?`;
-
-    const deliveryKeyboard = {
-      inline_keyboard: [
-        [
-          { text: "🆓 Free Delivery", callback_data: `delivery_0_${inquiryId}_${rate}_${gst}` }
-        ],
-        [
-          { text: "🚚 Enter Delivery Amount", callback_data: `delivery_custom_${inquiryId}_${rate}_${gst}` }
-        ]
-      ]
-    };
-
-    await this.bot.sendMessage(chatId, deliveryMessage, {
-      reply_markup: deliveryKeyboard
-    });
-  }
-
-  async handleVendorInput(msg: any, inputState: any) {
-    const chatId = msg.chat.id;
-    const text = msg.text;
-    const { waitingFor, inquiryId, data } = inputState;
-
-    if (waitingFor === 'rate') {
-      const rate = parseFloat(text);
-      if (isNaN(rate) || rate <= 0) {
-        await this.bot.sendMessage(chatId, "❌ Please enter a valid number. Example: 250");
-        return;
-      }
-
-      await this.showGstKeyboard(chatId, inquiryId, rate.toString());
-      this.vendorInputState.delete(chatId.toString());
-
-    } else if (waitingFor === 'gst') {
-      const gst = parseFloat(text);
-      if (isNaN(gst) || gst < 0 || gst > 30) {
-        await this.bot.sendMessage(chatId, "❌ Please enter a valid GST percentage (0-30). Example: 18");
-        return;
-      }
-
-      await this.showDeliveryKeyboard(chatId, inquiryId, data.rate, gst.toString());
-      this.vendorInputState.delete(chatId.toString());
-
-    } else if (waitingFor === 'delivery') {
-      const delivery = parseFloat(text);
-      if (isNaN(delivery) || delivery < 0) {
-        await this.bot.sendMessage(chatId, "❌ Please enter a valid delivery charge (0 or higher). Example: 400");
-        return;
-      }
-
-      await this.processCompleteQuote(chatId, inquiryId, data.rate, data.gst, delivery.toString());
-      this.vendorInputState.delete(chatId.toString());
-    }
-  }
-
-  async processCompleteQuote(chatId: number, inquiryId: string, rate: string, gst: string, delivery: string) {
-    try {
-      // Send confirmation to vendor
-      await this.bot.sendMessage(chatId, `✅ Quote submitted successfully!
-
-📋 **Your Quote Summary:**
-💰 Rate: ₹${rate} per unit
-📊 GST: ${gst}%
-🚚 Delivery: ${delivery === '0' ? 'Free' : '₹' + delivery}
-
-Inquiry ID: ${inquiryId}
-
-Your quote has been sent to the buyer!`);
-
-      // Process the quote (use your existing logic)
-      await this.processVendorRateSubmission(chatId, {
-        inquiryId,
-        rate: parseFloat(rate),
-        unit: 'bag',
-        gst: parseFloat(gst),
-        delivery: parseFloat(delivery)
-      });
-
-      // Create notification
-      try {
-        await storage.createNotification({
-          message: `✅ Vendor quote received: ₹${rate} per unit (Inquiry #${inquiryId})`,
-          type: 'vendor_quote_confirmed'
-        });
-      } catch (err) {
-        console.error('Failed to create notification:', err);
-      }
-    } catch (error) {
-      console.error('❌ Error processing complete quote:', error);
-      await this.bot.sendMessage(chatId, "❌ There was an error processing your quote. Please try again.");
-    }
+  // NEW: Get web session messages (for API)
+  getWebSessionMessages(sessionId: string): any[] {
+    const session = this.webSessions.get(sessionId);
+    return session ? session.messages : [];
   }
 
   async sendMessage(chatId: number | string, message: string) {
@@ -783,18 +723,6 @@ Your quote has been sent to the buyer!`);
           }
         }
 
-        if (update.message.text.includes('$') || update.message.text.includes('rate') || update.message.text.includes('quote') || update.message.text.includes('price')) {
-          await storage.createNotification({
-            message: `💰 Vendor responded with quote: "${update.message.text}"`,
-            type: 'vendor_response'
-          });
-        } else if (update.message.text.includes('need') || update.message.text.includes('looking for') || update.message.text.includes('inquiry') || update.message.text.includes('quote me')) {
-          await storage.createNotification({
-            message: `🔍 New inquiry received: "${update.message.text}"`,
-            type: 'new_inquiry'
-          });
-        }
-
         await this.handleIncomingMessage(update.message);
       }
     } catch (error) {
@@ -820,14 +748,3 @@ Your quote has been sent to the buyer!`);
   getStatus() {
     return {
       isActive: this.isActive,
-      activeSessions: this.userSessions.size + this.webSessions.size,
-      telegramSessions: this.userSessions.size,
-      webSessions: this.webSessions.size,
-      botConnected: !!this.bot
-    };
-  }
-}
-
-export const telegramBot = new TelegramBotService({
-  token: process.env.TELEGRAM_BOT_TOKEN || ""
-});

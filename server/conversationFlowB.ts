@@ -19,7 +19,7 @@ export interface FlowResponse {
 
 const CEMENT_TYPES = [
   'OPC Grade 33',
-  'OPC Grade 43', 
+  'OPC Grade 43',
   'OPC Grade 53',
   'PPC Grade 33',
   'PPC Grade 43',
@@ -139,7 +139,7 @@ Type the company name (e.g., ACC, UltraTech, Ambuja) or reply "Any" if no prefer
     // NEW: Cement company preference
     if (step === 'buyer_cement_company') {
       const cementCompany = message.trim() === '' ? 'Any' : message;
-      
+
       return {
         message: `🏗️ Select cement types you need (reply with numbers separated by commas, e.g., "1,3,5"):
 
@@ -202,7 +202,7 @@ Please enter your city name:`,
     if (step === 'buyer_cement_custom') {
       const customType = message.trim();
       const allCementTypes = [...data.cementTypes, customType];
-      
+
       if (data.material === 'both') {
         return {
           message: `✅ Cement types selected: ${allCementTypes.join(', ')}
@@ -229,7 +229,7 @@ Please enter your city name:`,
     // NEW: TMT company preference
     if (step === 'buyer_tmt_company') {
       const tmtCompany = message.trim() === '' ? 'Any' : message;
-      
+
       return {
         message: `🔧 Select TMT sizes you need (reply with numbers separated by commas, e.g., "3,5,7"):
 
@@ -268,7 +268,7 @@ Please enter your city name:`,
     // Updated city step to handle new data structure
     if (step === 'buyer_city') {
       const capitalizedCity = this.capitalizeCity(message);
-      
+
       let materialSummary = '';
       if (data.material === 'cement') {
         materialSummary = `Cement: ${data.cementTypes.join(', ')}`;
@@ -277,14 +277,14 @@ Please enter your city name:`,
       } else if (data.material === 'both') {
         materialSummary = `Cement: ${data.cementTypes.join(', ')}\nTMT: ${data.tmtSizes.join(', ')}`;
       }
-      
+
       return {
         message: `📦 How much do you need?
 
 Materials requested:
 ${materialSummary}
 
-Please specify quantity (e.g., "50 bags cement, 10 tons TMT"):`,
+Please specify quantity (For both Cement and TMT if both are selected) (e.g., "50 bags cement or/and 200 pieces or 40kg TMT"):`,
         nextStep: 'buyer_quantity',
         data: { ...data, city: capitalizedCity }
       };
