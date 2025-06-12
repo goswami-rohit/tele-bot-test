@@ -215,7 +215,7 @@ ${TMT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`
           message: `✅ Company: ${data.cementCompany}
 ✅ Types: ${selectedTypes.join(', ')}
 
-📍 Which city do you need these in?
+📍 Which city/location do you need these materials in?
 
 Please enter your city name:`,
           nextStep: 'buyer_city',
@@ -246,7 +246,7 @@ ${TMT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`
           message: `✅ Company: ${data.cementCompany}
 ✅ Types: ${allCementTypes.join(', ')}
 
-📍 Which city do you need these in?
+📍 Which city/location do you need these materials in?
 
 Please enter your city name:`,
           nextStep: 'buyer_city',
