@@ -149,18 +149,21 @@ export class DatabaseStorage {
   }
   // Inquiry operations
   async createInquiry(inquiryData: InsertInquiry): Promise<Inquiry> {
-    const [inquiry] = await this.db.insert(inquiries).values(inquiryData).returning();
+    // Convert arrays to JSON strings for storage
+    const processedData = {
+      ...inquiryData,
+      cementTypes: inquiryData.cementTypes ?
+        (Array.isArray(inquiryData.cementTypes) ? JSON.stringify(inquiryData.cementTypes) : inquiryData.cementTypes)
+        : null,
+      tmtSizes: inquiryData.tmtSizes ?
+        (Array.isArray(inquiryData.tmtSizes) ? JSON.stringify(inquiryData.tmtSizes) : inquiryData.tmtSizes)
+        : null
+    };
+
+    console.log('🔍 Creating inquiry with processed data:', processedData);
+
+    const [inquiry] = await this.db.insert(inquiries).values(processedData).returning();
     return inquiry;
-  }
-
-  async getInquiries(limit?: number): Promise<Inquiry[]> {
-    let query = this.db.select().from(inquiries).orderBy(sql`${inquiries.timestamp} DESC`);
-
-    if (limit) {
-      query = query.limit(limit);
-    }
-
-    return await query;
   }
 
   async getInquiryById(inquiryId: string): Promise<Inquiry | null> {
@@ -170,7 +173,50 @@ export class DatabaseStorage {
       .where(eq(inquiries.inquiryId, inquiryId))
       .limit(1);
 
+    if (inquiry) {
+      // Parse JSON strings back to arrays
+      inquiry.cementTypes = this.parseJsonField(inquiry.cementTypes, 'cementTypes');
+      inquiry.tmtSizes = this.parseJsonField(inquiry.tmtSizes, 'tmtSizes');
+
+      console.log('🔍 Retrieved inquiry with parsed data:', {
+        inquiryId: inquiry.inquiryId,
+        material: inquiry.material,
+        cementTypes: inquiry.cementTypes,
+        tmtSizes: inquiry.tmtSizes
+      });
+    }
+
     return inquiry || null;
+  }
+
+  async getInquiries(limit?: number): Promise<Inquiry[]> {
+    let query = this.db.select().from(inquiries).orderBy(sql`${inquiries.timestamp} DESC`);
+
+    if (limit) {
+      query = query.limit(limit);
+    }
+
+    const inquiriesList = await query;
+
+    // Parse JSON fields for all inquiries
+    return inquiriesList.map(inquiry => {
+      inquiry.cementTypes = this.parseJsonField(inquiry.cementTypes, 'cementTypes');
+      inquiry.tmtSizes = this.parseJsonField(inquiry.tmtSizes, 'tmtSizes');
+      return inquiry;
+    });
+  }
+
+  // Add this helper method to the DatabaseStorage class
+  private parseJsonField(field: any, fieldName: string): any {
+    if (!field) return null;
+    if (typeof field !== 'string') return field; // Already parsed or not a string
+
+    try {
+      return JSON.parse(field);
+    } catch (e) {
+      console.error(`Error parsing ${fieldName}:`, e);
+      return null;
+    }
   }
 
   async incrementInquiryResponses(inquiryId: string): Promise<void> {
@@ -250,6 +296,7 @@ export class DatabaseStorage {
 
   // Price response operations
   async createPriceResponse(responseData: InsertPriceResponse): Promise<PriceResponse> {
+    console.log('🔍 Creating price response:', responseData);
     const [response] = await this.db.insert(priceResponses).values(responseData).returning();
     return response;
   }
@@ -339,22 +386,22 @@ export class DatabaseStorage {
   async deleteVendorRate(rateId: number): Promise<void> {
     await this.db.delete(vendorRates).where(eq(vendorRates.id, rateId));
   }
- // API Keys operations
-async createApiKey(keyData: any): Promise<ApiKey> {
-  const [apiKey] = await this.db.insert(apiKeys).values({
-    keyName: keyData.name,     // This maps to 'key_name' column
-    keyValue: keyData.keyValue, // This maps to 'key_value' column
-    isActive: keyData.isActive,
-    keyType: keyData.keyType || 'vendor_rates',
-    permissions: keyData.permissions || [],
-    rateLimitPerHour: keyData.rateLimitPerHour || 1000,
-    usageCount: 0
-  }).returning();
-  return apiKey;
-}
-async getApiKeys(): Promise<ApiKey[]> {
-  return await this.db.select().from(apiKeys).orderBy(apiKeys.createdAt);
-}
+  // API Keys operations
+  async createApiKey(keyData: any): Promise<ApiKey> {
+    const [apiKey] = await this.db.insert(apiKeys).values({
+      keyName: keyData.name,     // This maps to 'key_name' column
+      keyValue: keyData.keyValue, // This maps to 'key_value' column
+      isActive: keyData.isActive,
+      keyType: keyData.keyType || 'vendor_rates',
+      permissions: keyData.permissions || [],
+      rateLimitPerHour: keyData.rateLimitPerHour || 1000,
+      usageCount: 0
+    }).returning();
+    return apiKey;
+  }
+  async getApiKeys(): Promise<ApiKey[]> {
+    return await this.db.select().from(apiKeys).orderBy(apiKeys.createdAt);
+  }
   async getActiveApiKeys(): Promise<ApiKey[]> {
     return await this.db
       .select()
@@ -401,24 +448,24 @@ async getApiKeys(): Promise<ApiKey[]> {
       .where(eq(apiKeys.keyValue, keyValue));
   }
   async validateApiKey(keyValue: string): Promise<ApiKey | null> {
-  const [apiKey] = await this.db
-    .select()
-    .from(apiKeys)
-    .where(and(
-      eq(apiKeys.keyValue, keyValue),
-      eq(apiKeys.isActive, true)
-    ));
-  return apiKey || null;
-}
-async updateApiKeyUsage(keyValue: string): Promise<void> {
-  await this.db
-    .update(apiKeys)
-    .set({ 
-      usageCount: sql`${apiKeys.usageCount} + 1`,
-      lastUsed: new Date()
-    })
-    .where(eq(apiKeys.keyValue, keyValue));
-}
+    const [apiKey] = await this.db
+      .select()
+      .from(apiKeys)
+      .where(and(
+        eq(apiKeys.keyValue, keyValue),
+        eq(apiKeys.isActive, true)
+      ));
+    return apiKey || null;
+  }
+  async updateApiKeyUsage(keyValue: string): Promise<void> {
+    await this.db
+      .update(apiKeys)
+      .set({
+        usageCount: sql`${apiKeys.usageCount} + 1`,
+        lastUsed: new Date()
+      })
+      .where(eq(apiKeys.keyValue, keyValue));
+  }
 
   // FIXED: Notification operations that actually work
   async getNotifications(): Promise<any[]> {
@@ -528,87 +575,87 @@ async updateApiKeyUsage(keyValue: string): Promise<void> {
       );
   }
 
-// ========================================
-// CHAT SESSION OPERATIONS
-// ========================================
+  // ========================================
+  // CHAT SESSION OPERATIONS
+  // ========================================
 
-async createChatSession(sessionData: {
-  apiKeyId: number;
-  sessionId: string;
-  userId?: string;
-  status?: string;
-  telegramChatId?: number;
-}) {
-  try {
-    console.log("💾 Attempting to save session to DB:", sessionData);
-    const result = await this.db.execute(sql`
+  async createChatSession(sessionData: {
+    apiKeyId: number;
+    sessionId: string;
+    userId?: string;
+    status?: string;
+    telegramChatId?: number;
+  }) {
+    try {
+      console.log("💾 Attempting to save session to DB:", sessionData);
+      const result = await this.db.execute(sql`
       INSERT INTO chat_sessions (api_key_id, session_id, user_id, status, telegram_chat_id, created_at, updated_at)
       VALUES (${sessionData.apiKeyId}, ${sessionData.sessionId}, ${sessionData.userId || null}, ${sessionData.status || 'active'}, ${sessionData.telegramChatId || null}, NOW(), NOW())
       RETURNING *
     `);
-    console.log("✅ Session saved successfully:", result.rows[0]);
-    return result.rows[0];
-  } catch (error) {
-    console.error("❌ Database error saving session:", error);
-    throw error;
+      console.log("✅ Session saved successfully:", result.rows[0]);
+      return result.rows[0];
+    } catch (error) {
+      console.error("❌ Database error saving session:", error);
+      throw error;
+    }
   }
-}
 
-async getChatSession(sessionId: string) {
-  try {
-    console.log("🔍 Querying DB for session:", sessionId);
-    const result = await this.db.execute(sql`
+  async getChatSession(sessionId: string) {
+    try {
+      console.log("🔍 Querying DB for session:", sessionId);
+      const result = await this.db.execute(sql`
       SELECT * FROM chat_sessions 
       WHERE session_id = ${sessionId}
       LIMIT 1
     `);
-    console.log("📋 DB query result:", result.rows[0] || "NOT FOUND");
-    return result.rows[0] || null;
-  } catch (error) {
-    console.error("❌ Database error getting session:", error);
-    return null;
+      console.log("📋 DB query result:", result.rows[0] || "NOT FOUND");
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error("❌ Database error getting session:", error);
+      return null;
+    }
   }
-}
 
-async getChatSessionByUserId(userId: string) {
-  try {
-    console.log("🔍 Querying DB for session by userId:", userId);
-    const result = await this.db.execute(sql`
+  async getChatSessionByUserId(userId: string) {
+    try {
+      console.log("🔍 Querying DB for session by userId:", userId);
+      const result = await this.db.execute(sql`
       SELECT * FROM chat_sessions 
       WHERE user_id = ${userId} AND status = 'active'
       ORDER BY created_at DESC
       LIMIT 1
     `);
-    console.log("📋 DB query result by userId:", result.rows[0] || "NOT FOUND");
-    return result.rows[0] || null;
-  } catch (error) {
-    console.error("❌ Database error getting session by userId:", error);
-    return null;
+      console.log("📋 DB query result by userId:", result.rows[0] || "NOT FOUND");
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error("❌ Database error getting session by userId:", error);
+      return null;
+    }
   }
-}
 
-async createChatMessage(messageData: {
-  sessionId: string;
-  senderType: string;
-  message: string;
-  senderId?: string;
-  telegramMessageId?: number;
-}) {
-  const result = await this.db.execute(sql`
+  async createChatMessage(messageData: {
+    sessionId: string;
+    senderType: string;
+    message: string;
+    senderId?: string;
+    telegramMessageId?: number;
+  }) {
+    const result = await this.db.execute(sql`
     INSERT INTO chat_messages (session_id, sender_type, sender_id, message, telegram_message_id, created_at)
     VALUES (${messageData.sessionId}, ${messageData.senderType}, ${messageData.senderId || null}, ${messageData.message}, ${messageData.telegramMessageId || null}, NOW())
     RETURNING *
   `);
-  return result.rows[0];
-}
+    return result.rows[0];
+  }
 
-async getChatMessages(sessionId: string) {
-  const result = await this.db.execute(sql`
+  async getChatMessages(sessionId: string) {
+    const result = await this.db.execute(sql`
     SELECT * FROM chat_messages 
     WHERE session_id = ${sessionId}
     ORDER BY created_at ASC
   `);
-  return result.rows || [];
-}
+    return result.rows || [];
+  }
 }
 export const storage = new DatabaseStorage();

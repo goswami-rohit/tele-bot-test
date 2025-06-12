@@ -504,10 +504,10 @@ For your inquiry in ${inquiry.city}
           userName: platform === 'web' ? 'Web User' : `User ${chatIdOrSessionId}`,
           userPhone,
           material: data.material,
-          cementCompany: data.cementCompany,
-          cementTypes: data.cementTypes,
-          tmtCompany: data.tmtCompany,
-          tmtSizes: data.tmtSizes,
+          cementCompany: data.cementCompany || null,
+          cementTypes: data.cementTypes || null,
+          tmtCompany: data.tmtCompany || null,
+          tmtSizes: data.tmtSizes || null,
           quantity: data.quantity || 'Not specified',
           city: data.city,
           platform,
@@ -754,7 +754,7 @@ Please provide your detailed quote:`;
       botConnected: !!this.bot
     };
   }
-} 
+}
 export const telegramBot = new TelegramBotService({
   token: process.env.TELEGRAM_BOT_TOKEN || ""
 });
