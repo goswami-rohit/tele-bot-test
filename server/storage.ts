@@ -238,7 +238,7 @@ export class DatabaseStorage {
           status,
           updatedAt: new Date()
         })
-        .where(eq(inquiries.id, inquiryId))
+        .where(eq(inquiries.inquiryId, inquiryId))
         .returning();
 
       return inquiry || null;
@@ -252,7 +252,7 @@ export class DatabaseStorage {
     try {
       const [inquiry] = await this.db
         .delete(inquiries)
-        .where(eq(inquiries.id, inquiryId))
+        .where(eq(inquiries.inquiryId, inquiryId))
         .returning();
 
       return inquiry || null;
@@ -270,7 +270,7 @@ export class DatabaseStorage {
           status,
           updatedAt: new Date()
         })
-        .where(inArray(inquiries.id, inquiryIds))
+        .where(inArray(inquiries.inquiryId, inquiryIds))
         .returning();
 
       return { count: result.length, inquiries: result };
@@ -284,7 +284,7 @@ export class DatabaseStorage {
     try {
       const result = await this.db
         .delete(inquiries)
-        .where(inArray(inquiries.id, inquiryIds))
+        .where(inArray(inquiries.inquiryId, inquiryIds))
         .returning();
 
       return { count: result.length };

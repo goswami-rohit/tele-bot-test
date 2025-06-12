@@ -13,7 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 declare global {
   var io: SocketIOServer | undefined;
 }
-export {};
+export { };
 // API key validation middleware
 const validateApiKey = async (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
@@ -41,7 +41,7 @@ const validateApiKey = async (req: any, res: any, next: any) => {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
-  
+
   // Initialize Socket.IO
   const socketIO = new SocketIOServer(httpServer, {
     cors: {
@@ -55,39 +55,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Socket.IO connection handling for web users
   socketIO.on('connection', (socket) => {
-  console.log('🌐 New web user connected:', socket.id);
-  socket.on('join-session', (sessionId) => {
-    console.log(`🔗 User ${socket.id} joined session: ${sessionId}`);
-    socket.join(`session-${sessionId}`);
-  });
-  socket.on('send-message', async (data) => {
-    const { sessionId, message } = data;
-    console.log(`💬 Web message from ${sessionId}: ${message}`);
-    
-    try {
-      // FIXED: Process directly through bot instead of sending to Telegram chat
-      // Create a mock telegram message object for the bot to process
-      const mockTelegramMessage = {
-        text: `[API] Session: ${sessionId} | User: ${socket.id}\n${message}`,
-        chat: { id: 6924933952 } // This triggers the web user message handler
-      };
-      
-      // Process through the bot's handleWebUserMessage method directly
-      await telegramBot.handleWebUserMessage(mockTelegramMessage);
-      
-      // Emit user message to session room (for display)
-      socketIO.to(`session-${sessionId}`).emit('new-message', {
-        sessionId,
-        senderType: 'user',
-        message,
-        timestamp: new Date()
-      });
-      
-    } catch (error) {
-      console.error('Error processing web message:', error);
-      socket.emit('error', { message: 'Failed to process message' });
-    }
-  });
+    console.log('🌐 New web user connected:', socket.id);
+    socket.on('join-session', (sessionId) => {
+      console.log(`🔗 User ${socket.id} joined session: ${sessionId}`);
+      socket.join(`session-${sessionId}`);
+    });
+    socket.on('send-message', async (data) => {
+      const { sessionId, message } = data;
+      console.log(`💬 Web message from ${sessionId}: ${message}`);
+
+      try {
+        // FIXED: Process directly through bot instead of sending to Telegram chat
+        // Create a mock telegram message object for the bot to process
+        const mockTelegramMessage = {
+          text: `[API] Session: ${sessionId} | User: ${socket.id}\n${message}`,
+          chat: { id: 6924933952 } // This triggers the web user message handler
+        };
+
+        // Process through the bot's handleWebUserMessage method directly
+        await telegramBot.handleWebUserMessage(mockTelegramMessage);
+
+        // Emit user message to session room (for display)
+        socketIO.to(`session-${sessionId}`).emit('new-message', {
+          sessionId,
+          senderType: 'user',
+          message,
+          timestamp: new Date()
+        });
+
+      } catch (error) {
+        console.error('Error processing web message:', error);
+        socket.emit('error', { message: 'Failed to process message' });
+      }
+    });
 
     socket.on('disconnect', () => {
       console.log('🔌 Web user disconnected:', socket.id);
@@ -118,7 +118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/webhook/telegram', async (req, res) => {
     try {
       console.log('🔵 Telegram webhook received:', JSON.stringify(req.body, null, 2));
-      
+
       if (req.body.message) {
         await telegramBot.processWebhookUpdate(req.body);
         res.status(200).json({ ok: true, source: 'telegram' });
@@ -136,9 +136,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.body;
       const sessionId = uuidv4();
-      
+
       console.log("🌐 Creating web session for userId:", userId || 'anonymous');
-      
+
       res.json({
         success: true,
         sessionId,
@@ -155,7 +155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { sessionId } = req.params;
       const messages = telegramBot.getWebSessionMessages(sessionId);
-      
+
       res.json({
         success: true,
         messages
@@ -170,19 +170,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat/send-web-message", validateApiKey, async (req, res) => {
     try {
       const { sessionId, message } = req.body;
-      
+
       if (!sessionId || !message) {
-        return res.status(400).json({ 
-          error: "Missing required fields: sessionId and message" 
+        return res.status(400).json({
+          error: "Missing required fields: sessionId and message"
         });
       }
-      
+
       // Send to telegram bot for processing
       const apiMessage = `[API] Session: ${sessionId} | User: api_user
 ${message}`;
-      
+
       await telegramBot.sendMessage(6924933952, apiMessage);
-      
+
       res.json({
         success: true,
         message: "Message sent successfully",
@@ -190,9 +190,9 @@ ${message}`;
       });
     } catch (error) {
       console.error('Failed to send web message:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to send message",
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -215,15 +215,15 @@ ${message}`;
       res.status(500).json({ error: "Failed to get Telegram bot status" });
     }
   });
-  
+
   // Test endpoint to setup Telegram webhook
   app.get('/setup-webhook', async (req, res) => {
     try {
       const webhookUrl = 'https://tele-bot-test.onrender.com/webhook/telegram';
       console.log('🔗 Setting up webhook for:', webhookUrl);
-      
+
       const info = await telegramBot.setupWebhook(webhookUrl);
-      
+
       res.json({
         success: true,
         webhookUrl,
@@ -351,14 +351,14 @@ ${message}`;
     try {
       const { sessionId, message } = req.body;
       if (!sessionId || !message) {
-        return res.status(400).json({ 
-          error: "Missing required fields: sessionId and message" 
+        return res.status(400).json({
+          error: "Missing required fields: sessionId and message"
         });
       }
-      
+
       const apiMessage = `[API] Session: ${sessionId} | User: api_user
 ${message}`;
-      
+
       await telegramBot.sendMessage(6924933952, apiMessage);
       res.json({
         status: "success",
@@ -367,9 +367,9 @@ ${message}`;
       });
     } catch (error) {
       console.error('Failed to send message to bot:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to send message",
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -379,9 +379,9 @@ ${message}`;
     try {
       const { userId } = req.body;
       const sessionId = uuidv4();
-      
+
       console.log("🔍 Creating session for userId:", userId);
-      
+
       res.json({
         success: true,
         sessionId,
@@ -397,29 +397,29 @@ ${message}`;
   app.post("/api/chat/send-message", validateApiKey, async (req, res) => {
     try {
       const { sessionId, userId, message } = req.body;
-      
+
       if (!message) {
-        return res.status(400).json({ 
-          error: "Missing required field: message" 
+        return res.status(400).json({
+          error: "Missing required field: message"
         });
       }
-      
+
       // Auto-generate userId from IP if not provided
       const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
       const finalUserId = userId || `ip_${clientIP.replace(/[.:]/g, '_')}_${Date.now()}`;
-      
+
       let finalSessionId = sessionId;
-      
+
       // If no sessionId provided, create a new one
       if (!sessionId) {
         finalSessionId = uuidv4();
         console.log("🆕 Auto-creating session:", finalSessionId, "for userId:", finalUserId);
       }
-      
+
       // Send to Telegram with session formatting
       const formattedMessage = `🔗 Session: ${finalSessionId}\n👤 User: ${finalUserId}\n📝 ${message}`;
       await telegramBot.sendMessage(6924933952, formattedMessage);
-      
+
       // Emit to WebSocket clients
       socketIO.to(`session-${finalSessionId}`).emit('new-message', {
         sessionId: finalSessionId,
@@ -427,7 +427,7 @@ ${message}`;
         message,
         timestamp: new Date()
       });
-      
+
       res.json({
         success: true,
         sessionId: finalSessionId,
@@ -505,7 +505,7 @@ ${message}`;
     }
   });
 
-  app.post("/api/admin/notifications/:id/mark-read", async (req, res) => {
+  app.put("/api/admin/notifications/:id/read", async (req, res) => {
     try {
       const { id } = req.params;
       await storage.markNotificationAsRead(parseInt(id));
@@ -515,7 +515,7 @@ ${message}`;
     }
   });
 
-  app.post("/api/admin/notifications/mark-all-read", async (req, res) => {
+  app.put("/api/admin/notifications/mark-all-read", async (req, res) => {
     try {
       await storage.markAllNotificationsAsRead();
       res.json({ success: true });
@@ -524,7 +524,18 @@ ${message}`;
     }
   });
 
-  app.delete("/api/admin/notifications", async (req, res) => {
+  // Fix: Add individual delete endpoint that frontend expects
+  app.delete("/api/admin/notifications/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteNotification(parseInt(id));
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete notification" });
+    }
+  });
+
+  app.delete("/api/admin/notifications/clear-all", async (req, res) => {
     try {
       await storage.clearAllNotifications();
       res.json({ success: true });
@@ -577,13 +588,13 @@ ${message}`;
   app.post("/api/admin/api-keys", async (req, res) => {
     try {
       const { name, keyType, permissions, rateLimitPerHour } = req.body;
-      
+
       if (!name) {
         return res.status(400).json({ error: "API key name is required" });
       }
-      
+
       const keyValue = crypto.randomBytes(32).toString('hex');
-      
+
       const apiKey = await storage.createApiKey({
         name,
         keyValue,
@@ -592,7 +603,7 @@ ${message}`;
         rateLimitPerHour: rateLimitPerHour || 1000,
         isActive: true
       });
-      
+
       res.json(apiKey);
     } catch (error) {
       res.status(500).json({ error: "Failed to create API key" });
@@ -603,7 +614,7 @@ ${message}`;
     try {
       const { id } = req.params;
       const updates = req.body;
-      
+
       const apiKey = await storage.updateApiKey(parseInt(id), updates);
       res.json(apiKey);
     } catch (error) {
