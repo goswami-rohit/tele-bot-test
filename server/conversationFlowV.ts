@@ -307,7 +307,7 @@ Please enter your city name:`,
     // Updated city step to handle new data structure
    if (step === 'buyer_city') {
   if (context.userType === 'web') {
-    // For web users: expects "cityId:localityId" format
+    // For web users: expects "cityId:localityId" format (keep existing logic)
     let formattedLocation = message;
     let cityId, localityId;
     
@@ -319,9 +319,6 @@ Please enter your city name:`,
         formattedLocation = validLocation;
       }
     }
-    
-    //const formattedLocation = LocationManager.getFormattedLocation(cityId, localityId);
-
     let materialSummary = '';
     if (data.material === 'cement') {
       materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}`;
@@ -330,68 +327,110 @@ Please enter your city name:`,
     } else if (data.material === 'both') {
       materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}\nTMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
     }
-
     return {
       message: `📦 How much do you need?
-
 Materials requested:
 ${materialSummary}
 📍 Location: ${formattedLocation}
-
 Please specify quantity (For both Cement and TMT if both are selected) (e.g., "50 bags cement or/and 200 pieces or 40kg TMT"):`,
       nextStep: 'buyer_quantity',
-      data: { ...data, city: formattedLocation, cityId, localityId } // FIX: Use formattedLocation instead of capitalizedCity, add cityId & localityId
+      data: { ...data, city: formattedLocation, cityId, localityId }
     };
   } else {
-    // For Telegram users: show available locations
-    const defaults = LocationManager.getDefaults();
-    const defaultLocation = defaults.city && defaults.locality ? 
-      LocationManager.getFormattedLocation(defaults.city.id, defaults.locality.id) : 
-      'Ganeshguri, Guwahati';
+    // For Telegram users: show city selection with inline keyboard
+    const cities = LocationManager.getCities();
     
     return {
-      message: `📍 We currently serve ${defaultLocation}.
-
-Type "yes" to continue with this location or "no" if you're in a different area:`,
-      nextStep: 'buyer_city_confirm',
-      data: { ...data, city: defaultLocation, cityId: 'guwahati', localityId: 'ganeshguri' }
+      message: `📍 Select which city you need materials in:`,
+      nextStep: 'buyer_city_select',
+      data: data,
+      inlineKeyboard: cities.map((city) => [{
+        text: city.name,
+        callback_data: `bcity_${city.id}`
+      }])
     };
   }
 }
-
- // Add confirmation step for Telegram users
- if (step === 'buyer_city_confirm') {
-  if (message.toLowerCase() === 'yes' || message.toLowerCase() === 'y') {
-    // Continue with default location
-    let materialSummary = '';
-    if (data.material === 'cement') {
-      materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}`;
-    } else if (data.material === 'tmt') {
-      materialSummary = `TMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
-    } else if (data.material === 'both') {
-      materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}\nTMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
-    }
-
+// Add new step for buyer city selection
+if (step === 'buyer_city_select') {
+  const cities = LocationManager.getCities();
+  let selectedCity;
+  // Handle inline keyboard callback
+  if (message.startsWith('bcity_')) {
+    const cityId = message.replace('bcity_', '');
+    selectedCity = cities.find(city => city.id === cityId);
+  } else {
+    // Handle number input as fallback
+    const selectedIndex = parseInt(message.trim()) - 1;
+    selectedCity = cities[selectedIndex];
+  }
+  if (!selectedCity) {
     return {
-      message: `📦 How much do you need?
-
-Materials requested:
-${materialSummary}
-📍 Location: ${data.city}
-
-Please specify quantity (e.g., "50 bags cement or/and 200 pieces TMT"):`,
-      nextStep: 'buyer_quantity',
+      message: `Please select a valid city option`,
+      nextStep: 'buyer_city_select',
       data: data
     };
-  } else {
+  }
+  return {
+    message: `🏘️ Select which locality you need materials in:`,
+    nextStep: 'buyer_locality_select',
+    data: { ...data, selectedCityId: selectedCity.id, selectedCityName: selectedCity.name },
+    inlineKeyboard: selectedCity.localities.map((locality) => [{
+      text: locality.name,
+      callback_data: `bloc_${locality.id}`
+    }])
+  };
+}
+// Add new step for buyer locality selection
+if (step === 'buyer_locality_select') {
+  const cities = LocationManager.getCities();
+  const selectedCity = cities.find(city => city.id === data.selectedCityId);
+  
+  if (!selectedCity) {
     return {
-      message: `Sorry, we currently only serve Guwahati area. We'll be expanding to more cities soon!
-
-Type /start to try again or contact us for updates on new service areas.`,
-      nextStep: 'completed'
+      message: `Error: Please start over with /start`,
+      nextStep: 'user_type',
+      data: {}
     };
   }
+  let selectedLocality;
+  // Handle inline keyboard callback
+  if (message.startsWith('bloc_')) {
+    const localityId = message.replace('bloc_', '');
+    selectedLocality = selectedCity.localities.find(locality => locality.id === localityId);
+  } else {
+    // Handle number input as fallback
+    const selectedIndex = parseInt(message.trim()) - 1;
+    selectedLocality = selectedCity.localities[selectedIndex];
+  }
+  if (!selectedLocality) {
+    return {
+      message: `Please select a valid locality option`,
+      nextStep: 'buyer_locality_select',
+      data: data
+    };
+  }
+  // Store as "locality, city" format
+  const fullLocation = `${selectedLocality.name}, ${selectedCity.name}`;
+  let materialSummary = '';
+  if (data.material === 'cement') {
+    materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}`;
+  } else if (data.material === 'tmt') {
+    materialSummary = `TMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
+  } else if (data.material === 'both') {
+    materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}\nTMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
+  }
+  return {
+    message: `📦 How much do you need?
+Materials requested:
+${materialSummary}
+📍 Location: ${fullLocation}
+Please specify quantity (e.g., "50 bags cement or/and 200 pieces TMT"):`,
+    nextStep: 'buyer_quantity',
+    data: { ...data, city: fullLocation }
+  };
 }
+
 
  if (step === 'buyer_quantity') {
   return {

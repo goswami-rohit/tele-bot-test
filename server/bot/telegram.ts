@@ -21,11 +21,10 @@ export class TelegramBotService {
   private userSessions: Map<string, any> = new Map();
   private webSessions: Map<string, any> = new Map();
   private token: string;
-  private apiUrl: string;
+  // REMOVED: private vendorInputState: Map<string, any> = new Map(); (now handled by vendorResponseFlow)
 
   constructor(config: TelegramBotConfig) {
     this.token = config.token;
-    this.apiUrl = `https://api.telegram.org/bot${this.token}`;
   }
 
   private initializeBot() {
@@ -91,7 +90,7 @@ export class TelegramBotService {
 
           console.log('🔵 Telegram message received from:', msg.chat.id, ':', msg.text);
 
-          // Check if this is an API message from web user
+          // NEW: Check if this is an API message from web user
           if (msg.text?.startsWith('[API]')) {
             await this.handleWebUserMessage(msg);
             return;
@@ -113,7 +112,7 @@ export class TelegramBotService {
           this.handleIncomingMessage(msg);
         });
 
-        // Enhanced callback query handler
+        // UPDATED: Enhanced callback query handler for vendor response flow
         this.bot.on('callback_query', async (query) => {
           try {
             const data = query.data;
@@ -121,12 +120,8 @@ export class TelegramBotService {
 
             console.log(`🔘 Callback query received from ${chatId}:`, data);
 
-            // Handle vendor registration callbacks
-            if (data.startsWith('vcity_') || data.startsWith('vloc_') || data.startsWith('vmat_')) {
-              await this.handleVendorRegistrationCallback(query, data);
-            }
-            // Handle vendor response flow callbacks
-            else if (data.startsWith('rate_custom_')) {
+            // NEW: Handle vendor response flow callbacks
+            if (data.startsWith('rate_custom_')) {
               await this.handleVendorRateStart(query, data);
             } else if (data.startsWith('rate_cement_') || data.startsWith('rate_tmt_')) {
               await this.handleVendorTypeRateEntry(query, data);
@@ -136,6 +131,8 @@ export class TelegramBotService {
               await this.handleVendorGstSelection(query, data);
             } else if (data.startsWith('delivery_')) {
               await this.handleVendorDeliverySelection(query, data);
+            } else if (data.startsWith('vcity_') || data.startsWith('vloc_') || data.startsWith('vmat_') || data.startsWith('bcity_') || data.startsWith('bloc_')) {
+              await this.handleLocationCallback(query, data);
             }
 
             await this.bot.answerCallbackQuery(query.id);
@@ -162,51 +159,45 @@ export class TelegramBotService {
     }
   }
 
-  // Handle vendor registration callback queries
-  private async handleVendorRegistrationCallback(query: any, data: string) {
-    const chatId = query.message.chat.id;
-    
-    console.log(`🔘 Vendor registration callback: ${data}`);
+  private async handleLocationCallback(query: any, data: string) {
+  const chatId = query.message.chat.id;
+  
+  console.log(`🔘 Location callback: ${data}`);
 
-    // Get session
-    let session = this.userSessions.get(chatId.toString());
-    if (!session) {
-      session = { step: 'user_type', userType: 'telegram' };
-      this.userSessions.set(chatId.toString(), session);
-    }
-
-    // Process callback through conversation flow
-    const context: ConversationContextV = {
-      chatId: chatId.toString(),
-      userType: 'telegram',
-      step: session.step,
-      data: session.data
-    };
-
-    const response = await conversationFlowV.processMessage(context, data);
-
-    // Update session
-    session.step = response.nextStep;
-    session.data = { ...session.data, ...response.data };
+  let session = this.userSessions.get(chatId.toString());
+  if (!session) {
+    session = { step: 'user_type', userType: 'telegram' };
     this.userSessions.set(chatId.toString(), session);
-
-    // Handle completion actions
-    if (response.action) {
-      await this.handleCompletionAction(response.action, response.data, chatId, 'telegram');
-    }
-
-    // Send response with inline keyboard
-    const messageOptions: any = {};
-    if (response.inlineKeyboard) {
-      messageOptions.reply_markup = {
-        inline_keyboard: response.inlineKeyboard
-      };
-    }
-
-    await this.sendMessage(chatId, response.message, messageOptions);
   }
 
-  // Handle web user messages from API
+  const context: ConversationContextV = {
+    chatId: chatId.toString(),
+    userType: 'telegram',
+    step: session.step,
+    data: session.data
+  };
+
+  const response = await conversationFlowV.processMessage(context, data);
+
+  session.step = response.nextStep;
+  session.data = { ...session.data, ...response.data };
+  this.userSessions.set(chatId.toString(), session);
+
+  if (response.action) {
+    await this.handleCompletionAction(response.action, response.data, chatId, 'telegram');
+  }
+
+  const messageOptions: any = {};
+  if (response.inlineKeyboard) {
+    messageOptions.reply_markup = {
+      inline_keyboard: response.inlineKeyboard
+    };
+  }
+
+  await this.sendMessage(chatId, response.message, messageOptions);
+ }
+
+  // NEW: Handle web user messages from API
   public async handleWebUserMessage(msg: any) {
     const text = msg.text;
     const match = text.match(/\[API\] Session: ([^|]+) \| User: ([^\n]+)\n(.+)/);
@@ -215,7 +206,7 @@ export class TelegramBotService {
       const [, sessionId, userId, userMessage] = match;
       console.log('🌐 Processing web user message:', { sessionId, userId, userMessage });
 
-      // Get or create session for web user
+      // Get or create session for web user (stored in memory)
       let session = this.webSessions.get(sessionId);
       if (!session) {
         session = { step: 'user_type', userType: 'web', sessionId, messages: [] };
@@ -280,7 +271,7 @@ export class TelegramBotService {
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    // Check if vendor is in response flow first
+    // NEW: Check if vendor is in response flow first
     const vendorState = vendorResponseFlow.getVendorState(chatId.toString());
     if (vendorState) {
       const response = await vendorResponseFlow.processTextInput(chatId.toString(), text);
@@ -315,18 +306,38 @@ export class TelegramBotService {
       await this.handleCompletionAction(response.action, response.data, chatId, 'telegram');
     }
 
-    // Send response with inline keyboard if present
-    const messageOptions: any = {};
-    if (response.inlineKeyboard) {
+      // Send response
+     const messageOptions: any = {};
+     if (response.inlineKeyboard) {
       messageOptions.reply_markup = {
-        inline_keyboard: response.inlineKeyboard
+       inline_keyboard: response.inlineKeyboard
       };
+   }
+     await this.sendMessage(chatId, response.message, messageOptions);
     }
 
-    await this.sendMessage(chatId, response.message, messageOptions);
-  }
+  async sendMessage(chatId: number | string, message: string, options?: any) {
+  if (!this.bot || !this.isActive) return;
 
-  // Send vendor response with optional keyboard
+  try {
+    const messageOptions: any = {
+      parse_mode: 'Markdown'
+    };
+
+    // ADD THIS: Include inline keyboard if provided
+    if (options?.reply_markup) {
+      messageOptions.reply_markup = options.reply_markup;
+    }
+
+    await this.bot.sendMessage(chatId, message, messageOptions);
+    console.log(`✅ Message sent to ${chatId}`);
+  } catch (error) {
+    console.error('❌ Error sending message:', error);
+    throw error;
+  }
+ }
+
+  // NEW: Send vendor response with optional keyboard
   private async sendVendorResponse(chatId: number, response: any) {
     if (response.action === 'send_quote_to_buyer') {
       await this.processCompleteQuoteSubmission(response.data);
@@ -344,15 +355,14 @@ export class TelegramBotService {
         parse_mode: 'Markdown'
       });
     }
-
-    // Handle actions after sending vendor response
+    // NEW: Handle actions after sending vendor response
     if (response.action === 'send_quote_to_buyer' && response.data) {
       console.log('🔍 Processing send_quote_to_buyer action:', response.data);
       await this.notifyBuyerOfVendorResponse(response.data);
     }
   }
 
-  // Notify buyer of vendor response
+  // Add this method to your TelegramBot class
   private async notifyBuyerOfVendorResponse(data: any) {
     try {
       const { inquiryId, rates, gst, delivery, vendorTelegramId } = data;
@@ -412,7 +422,40 @@ export class TelegramBotService {
     }
   }
 
-  // Handle vendor rate flow start
+  // Helper method to store price response
+  private async storePriceResponse(inquiryId: string, vendorTelegramId: string, rates: any, gst: number, delivery: number) {
+    try {
+      // Get vendor details
+      const vendor = await storage.getVendorByTelegramId(vendorTelegramId);
+      if (!vendor) return;
+
+      // Store each material rate separately
+      for (const material of Object.keys(rates)) {
+        const materialRates = rates[material];
+        for (const item of Object.keys(materialRates)) {
+          const rate = materialRates[item];
+          if (rate > 0) { // Only store available items
+            await storage.createPriceResponse({
+              vendorId: vendor.vendorId,
+              inquiryId: inquiryId,
+              material: `${material}-${item}`, // e.g., "cement-OPC Grade 33"
+              price: rate.toString(),
+              gst: gst.toString(),
+              deliveryCharge: delivery.toString()
+            });
+          }
+        }
+      }
+
+      // Update inquiry status
+      await storage.updateInquiryStatus(inquiryId, 'responded');
+
+    } catch (error) {
+      console.error('❌ Error storing price response:', error);
+    }
+  }
+
+  // NEW: Handle vendor rate flow start
   private async handleVendorRateStart(query: any, data: string) {
     const chatId = query.message.chat.id;
     const inquiryId = data.replace('rate_custom_', '');
@@ -423,7 +466,7 @@ export class TelegramBotService {
     await this.sendVendorResponse(chatId, response);
   }
 
-  // Handle specific type rate entry
+  // NEW: Handle specific type rate entry
   private async handleVendorTypeRateEntry(query: any, data: string) {
     const chatId = query.message.chat.id;
     const parts = data.split('_');
@@ -442,7 +485,7 @@ export class TelegramBotService {
     await this.sendVendorResponse(chatId, response);
   }
 
-  // Handle rates completion
+  // NEW: Handle rates completion
   private async handleVendorRatesComplete(query: any, data: string) {
     const chatId = query.message.chat.id;
     const inquiryId = data.replace('rates_complete_', '');
@@ -453,7 +496,7 @@ export class TelegramBotService {
     await this.sendVendorResponse(chatId, response);
   }
 
-  // Handle GST selection
+  // NEW: Handle GST selection
   private async handleVendorGstSelection(query: any, data: string) {
     const chatId = query.message.chat.id;
     const parts = data.split('_');
@@ -466,7 +509,7 @@ export class TelegramBotService {
     await this.sendVendorResponse(chatId, response);
   }
 
-  // Handle delivery selection
+  // NEW: Handle delivery selection
   private async handleVendorDeliverySelection(query: any, data: string) {
     const chatId = query.message.chat.id;
     const parts = data.split('_');
@@ -479,7 +522,7 @@ export class TelegramBotService {
     await this.sendVendorResponse(chatId, response);
   }
 
-  // Process complete quote submission
+  // NEW: Process complete quote submission
   private async processCompleteQuoteSubmission(data: any) {
     try {
       console.log(`📤 Processing complete quote submission:`, data);
@@ -542,7 +585,7 @@ export class TelegramBotService {
     }
   }
 
-  // Send detailed quote to buyer
+  // NEW: Send detailed quote to buyer
   private async sendDetailedQuoteToBuyer(inquiry: any, quoteData: any, vendor: any) {
     let buyerMessage = `🏗️ **New Quote Received!**
 
@@ -612,7 +655,7 @@ For your inquiry in ${inquiry.city}
     }
   }
 
-  // Handle completion actions for both web and telegram users
+  // UPDATED: Handle completion actions for both web and telegram users
   async handleCompletionAction(action: string, data: any, chatIdOrSessionId: string | number, platform: 'telegram' | 'web') {
     console.log(`🎯 handleCompletionAction called:`, { action, data, chatIdOrSessionId, platform });
 
@@ -650,45 +693,43 @@ For your inquiry in ${inquiry.city}
 
         // Handle "both" material case with deduplication
         if (data.material === 'both') {
-          const vendors = await storage.getVendors(data.city, 'cement');
-          const tmtVendors = await storage.getVendors(data.city, 'tmt');
-          
-          // Combine and deduplicate vendors
-          const allVendors = [...vendors];
-          tmtVendors.forEach(tmtVendor => {
-            if (!vendors.find(v => v.vendorId === tmtVendor.vendorId)) {
-              allVendors.push(tmtVendor);
-            }
-          });
+          console.log(`📢 Material is "both" - finding and deduplicating vendors`);
 
-          if (allVendors.length === 0) {
-            console.log(`⚠️ No vendors found for materials in city "${data.city}"`);
-            
-            // Try fallback to city-only search
-            const fallbackVendors = await storage.getVendorsByCity(data.city.split(',')[1]?.trim() || data.city);
-            if (fallbackVendors.length > 0) {
-              await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData, fallbackVendors);
-            }
-          } else {
-            await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData, allVendors);
-          }
+          const cementVendors = await storage.getVendorsByMaterialAndCity('cement', data.city);
+          const tmtVendors = await storage.getVendorsByMaterialAndCity('tmt', data.city);
+
+          // Combine and deduplicate vendors by vendorId
+          const allVendors = [...cementVendors, ...tmtVendors];
+          const uniqueVendors = allVendors.filter((vendor, index, self) =>
+            index === self.findIndex(v => v.vendorId === vendor.vendorId)
+          );
+
+          console.log(`📋 Found ${cementVendors.length} cement + ${tmtVendors.length} TMT = ${uniqueVendors.length} unique vendors`);
+
+          // Send to unique vendors with complete inquiry data
+          await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData, uniqueVendors);
+
         } else {
-          // Single material inquiry
-          const vendors = await storage.getVendors(data.city, data.material);
-          console.log(`🔍 Found ${vendors.length} vendors for material "${data.material}" in city "${data.city}"`);
+          // Single material - find vendors with location matching
+          console.log(`📢 Finding vendors for material "${data.material}" in location "${data.city}"`);
+          
+          const vendors = await storage.getVendorsByMaterialAndCity(data.material, data.city);
+          console.log(`📋 Found ${vendors.length} vendors for ${data.material}`);
           
           if (vendors.length === 0) {
             console.log(`⚠️ No vendors found for material "${data.material}" in city "${data.city}"`);
+            // Try fallback search by city only
+            const cityOnly = data.city.split(', ').pop() || data.city;
+            const fallbackVendors = await storage.getVendorsByMaterialAndCity(data.material, cityOnly);
+            console.log(`🔍 Fallback search found ${fallbackVendors.length} vendors in ${cityOnly}`);
             
-            // Try fallback to city-only search
-            const fallbackVendors = await storage.getVendorsByCity(data.city.split(',')[1]?.trim() || data.city);
             if (fallbackVendors.length > 0) {
               await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData, fallbackVendors);
             }
           } else {
             await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData, vendors);
           }
-        }
+        } // Add this closing bracket
 
       } else if (action === 'register_vendor') {
         const vendorId = `VEN-${Date.now()}`;
@@ -714,7 +755,7 @@ For your inquiry in ${inquiry.city}
     }
   }
 
-  // Enhanced vendor notification with detailed inquiry data
+  // UPDATED: Enhanced vendor notification with detailed inquiry data
   private async notifyVendorsOfNewInquiry(inquiryId: string, inquiryData: any, vendorsOverride?: any[]) {
     try {
       console.log(`🔍 notifyVendorsOfNewInquiry called with:`, { inquiryId, inquiryData });
@@ -793,33 +834,43 @@ Please provide your detailed quote:`;
     }
   }
 
-  // Get web session messages (for API)
+  // NEW: Get web session messages (for API)
   getWebSessionMessages(sessionId: string): any[] {
     const session = this.webSessions.get(sessionId);
     return session ? session.messages : [];
   }
 
-  // Fixed sendMessage method with inline keyboard support
-  async sendMessage(chatId: number | string, message: string, options?: any) {
+  async sendMessage(chatId: number | string, message: string) {
     if (!this.bot || !this.isActive) return;
 
-    try {
-      const messageOptions: any = {
-        parse_mode: 'Markdown'
-      };
-
-      // Add inline keyboard if provided
-      if (options?.reply_markup) {
-        messageOptions.reply_markup = options.reply_markup;
-      }
-
-      await this.bot.sendMessage(chatId, message, messageOptions);
-      console.log(`✅ Message sent to ${chatId}`);
-    } catch (error) {
-      console.error('❌ Error sending message:', error);
-      throw error;
-    }
+    const url = `${this.apiUrl}/sendMessage`;
+  
+  const payload: any = {
+    chat_id: chatId,
+    text: text,
+    parse_mode: 'HTML'
+  };
+  // ADD THIS: Include inline keyboard if provided
+  if (options?.reply_markup) {
+    payload.reply_markup = options.reply_markup;
   }
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error sending message:', error);
+    throw error;
+  }
+}
 
   async stop() {
     this.isActive = false;
@@ -861,40 +912,6 @@ Please provide your detailed quote:`;
 
   async processWebhookUpdate(update: any) {
     try {
-      if (update.callback_query) {
-        const data = update.callback_query.data;
-        const chatId = update.callback_query.message.chat.id;
-
-        console.log(`🔘 Webhook callback query received from ${chatId}:`, data);
-
-        // Handle vendor registration callbacks
-        if (data.startsWith('vcity_') || data.startsWith('vloc_') || data.startsWith('vmat_')) {
-          await this.handleVendorRegistrationCallback(update.callback_query, data);
-        }
-        // Handle vendor response flow callbacks
-        else if (data.startsWith('rate_custom_')) {
-          await this.handleVendorRateStart(update.callback_query, data);
-        } else if (data.startsWith('rate_cement_') || data.startsWith('rate_tmt_')) {
-          await this.handleVendorTypeRateEntry(update.callback_query, data);
-        } else if (data.startsWith('rates_complete_')) {
-          await this.handleVendorRatesComplete(update.callback_query, data);
-        } else if (data.startsWith('gst_')) {
-          await this.handleVendorGstSelection(update.callback_query, data);
-        } else if (data.startsWith('delivery_')) {
-          await this.handleVendorDeliverySelection(update.callback_query, data);
-        }
-
-        // Answer callback query
-        const url = `${this.apiUrl}/answerCallbackQuery`;
-        await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ callback_query_id: update.callback_query.id })
-        });
-
-        return;
-      }
-
       if (update.message && update.message.text) {
         console.log('🔵 Webhook message received from:', update.message.chat.id, ':', update.message.text);
 
@@ -947,7 +964,6 @@ Please provide your detailed quote:`;
     };
   }
 }
-
 export const telegramBot = new TelegramBotService({
   token: process.env.TELEGRAM_BOT_TOKEN || ""
 });
