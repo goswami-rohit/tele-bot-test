@@ -515,7 +515,7 @@ ${message}`;
     }
   });
 
-  app.put("/api/admin/notifications/mark-all-read", async (req, res) => {
+  app.post("/api/admin/notifications/mark-all-read", async (req, res) => {
     try {
       await storage.markAllNotificationsAsRead();
       res.json({ success: true });

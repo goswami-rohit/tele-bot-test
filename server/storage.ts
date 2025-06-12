@@ -469,40 +469,77 @@ export class DatabaseStorage {
 
   // FIXED: Notification operations that actually work
   async getNotifications(): Promise<any[]> {
-    const result = await this.db.execute(sql`SELECT * FROM notifications ORDER BY created_at DESC`);
-    return result.rows || [];
+    try {
+      const result = await this.db.execute(sql`
+      SELECT id, message, type, is_read as "isRead", created_at as "createdAt" 
+      FROM notifications 
+      ORDER BY created_at DESC
+    `);
+      return result.rows || [];
+    } catch (error) {
+      console.error("❌ Error fetching notifications:", error);
+      return [];
+    }
   }
-
   async markNotificationAsRead(notificationId: number): Promise<void> {
-    await this.db.update(notifications)
-      .set({ isRead: true })
-      .where(eq(notifications.id, notificationId));
-    console.log(`Marking notification ${notificationId} as read`);
+    try {
+      // Fix: Use proper SQL with column name is_read
+      await this.db.execute(sql`UPDATE notifications SET is_read = true WHERE id = ${notificationId}`);
+      console.log(`✅ Marked notification ${notificationId} as read`);
+    } catch (error) {
+      console.error(`❌ Error marking notification ${notificationId} as read:`, error);
+      throw error;
+    }
   }
 
   async markAllNotificationsAsRead(): Promise<void> {
-    await this.query('UPDATE notifications SET is_read = true');
-    console.log("Marking all notifications as read");
+    try {
+      // Fix: Use proper db.execute instead of this.query
+      await this.db.execute(sql`UPDATE notifications SET is_read = true WHERE is_read = false`);
+      console.log("✅ Marked all notifications as read");
+    } catch (error) {
+      console.error("❌ Error marking all notifications as read:", error);
+      throw error;
+    }
   }
 
   async clearAllNotifications(): Promise<void> {
-    await this.db.execute(sql`DELETE FROM notifications`);
-    console.log("All notifications cleared");
-  }
-  async createNotification(notification: { message: string, type: string }) {
-    const result = await this.db.execute(sql`
-  INSERT INTO notifications (message, type, is_read, created_at) 
-  VALUES (${notification.message}, ${notification.type}, false, NOW()) 
-  RETURNING *
-`);
-    return result.rows[0];
-  }
-  async deleteNotification(notificationId: number): Promise<void> {
-    const index = this.mockNotifications.findIndex(n => n.id === notificationId);
-    if (index > -1) {
-      this.mockNotifications.splice(index, 1);
+    try {
+      await this.db.execute(sql`DELETE FROM notifications`);
+      console.log("✅ All notifications cleared");
+    } catch (error) {
+      console.error("❌ Error clearing notifications:", error);
+      throw error;
     }
-    console.log(`Deleting notification ${notificationId}`);
+  }
+
+  async createNotification(notification: { message: string, type: string }) {
+    try {
+      const result = await this.db.execute(sql`
+      INSERT INTO notifications (message, type, is_read, created_at) 
+      VALUES (${notification.message}, ${notification.type}, false, NOW()) 
+      RETURNING *
+    `);
+      console.log("✅ Created notification:", notification.message);
+      return result.rows[0];
+    } catch (error) {
+      console.error("❌ Error creating notification:", error);
+      throw error;
+    }
+  }
+
+  async deleteNotification(notificationId: number): Promise<void> {
+    try {
+      console.log(`🔍 Deleting notification ID: ${notificationId}`);
+
+      // Fix: Remove mock array logic, use proper database deletion
+      await this.db.execute(sql`DELETE FROM notifications WHERE id = ${notificationId}`);
+
+      console.log(`✅ Successfully deleted notification ${notificationId}`);
+    } catch (error) {
+      console.error(`❌ Error deleting notification ${notificationId}:`, error);
+      throw error;
+    }
   }
 
   // Analytics and metrics

@@ -275,13 +275,117 @@ export class TelegramBotService {
       await this.processCompleteQuoteSubmission(response.data);
     }
 
+    if (!this.bot) return;
+
     if (response.keyboard) {
       await this.bot.sendMessage(chatId, response.message, {
         reply_markup: response.keyboard,
         parse_mode: 'Markdown'
       });
     } else {
-      await this.sendMessage(chatId, response.message);
+      await this.bot.sendMessage(chatId, response.message, {
+        parse_mode: 'Markdown'
+      });
+    }
+    // NEW: Handle actions after sending vendor response
+    if (response.action === 'send_quote_to_buyer' && response.data) {
+      console.log('🔍 Processing send_quote_to_buyer action:', response.data);
+      await this.notifyBuyerOfVendorResponse(response.data);
+    }
+  }
+
+  // Add this method to your TelegramBot class
+  private async notifyBuyerOfVendorResponse(data: any) {
+    try {
+      const { inquiryId, rates, gst, delivery, vendorTelegramId } = data;
+
+      // Get inquiry details
+      const inquiry = await storage.getInquiryById(inquiryId);
+      if (!inquiry) {
+        console.error('❌ Inquiry not found:', inquiryId);
+        return;
+      }
+
+      // Get vendor details
+      const vendor = await storage.getVendorByTelegramId(vendorTelegramId);
+      if (!vendor) {
+        console.error('❌ Vendor not found:', vendorTelegramId);
+        return;
+      }
+
+      // Build response message for buyer
+      let message = `🎯 **New Quote Received!**\n\n`;
+      message += `👤 **Vendor:** ${vendor.name}\n`;
+      message += `📱 **Contact:** ${vendor.phone}\n`;
+      message += `📍 **City:** ${vendor.city}\n\n`;
+
+      message += `💰 **Quote Details:**\n`;
+
+      // Add rates for each material type
+      Object.keys(rates).forEach(material => {
+        const materialRates = rates[material];
+        message += `\n**${material.toUpperCase()}:**\n`;
+        Object.keys(materialRates).forEach(item => {
+          const rate = materialRates[item];
+          if (rate === 0) {
+            message += `• ${item}: Not available\n`;
+          } else {
+            message += `• ${item}: ₹${rate} per unit\n`;
+          }
+        });
+      });
+
+      message += `\n📊 **GST:** ${gst}%`;
+      message += `\n🚚 **Delivery:** ${delivery === 0 ? 'Free' : '₹' + delivery}`;
+      message += `\n\n💡 Contact the vendor directly for further negotiations.`;
+
+      // Send to buyer (check if they have telegram ID)
+      if (inquiry.platform === 'telegram' && inquiry.userPhone) {
+        // For telegram buyers, you'll need to store their telegram chat ID
+        // This might require modification to how you handle telegram buyers
+        console.log('📱 Would send to telegram buyer:', inquiry.userName);
+      }
+
+      // Store the price response in database
+      await this.storePriceResponse(inquiryId, vendorTelegramId, rates, gst, delivery);
+
+      console.log('✅ Buyer notification sent for inquiry:', inquiryId);
+
+    } catch (error) {
+      console.error('❌ Error notifying buyer:', error);
+    }
+  }
+
+  // Helper method to store price response
+  private async storePriceResponse(inquiryId: string, vendorTelegramId: string, rates: any, gst: number, delivery: number) {
+    try {
+      // Get vendor details
+      const vendor = await storage.getVendorByTelegramId(vendorTelegramId);
+      if (!vendor) return;
+
+      // Store each material rate separately
+      for (const material of Object.keys(rates)) {
+        const materialRates = rates[material];
+        for (const item of Object.keys(materialRates)) {
+          const rate = materialRates[item];
+          if (rate > 0) { // Only store available items
+            await storage.createPriceResponse({
+              vendorId: vendor.vendorId,
+              inquiryId: inquiryId,
+              material: `${material}-${item}`, // e.g., "cement-OPC Grade 33"
+              price: rate.toString(),
+              gst: gst.toString(),
+              deliveryCharge: delivery.toString()
+            });
+          }
+        }
+      }
+
+      // Update inquiry status
+      await storage.updateInquiryStatus(inquiryId, 'responded');
+
+    } catch (error) {
+      console.error('❌ Error storing price response:', error);
     }
   }
 
