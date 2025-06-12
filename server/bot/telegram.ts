@@ -314,12 +314,12 @@ export class TelegramBotService {
       };
    }
      await this.sendMessage(chatId, response.message, messageOptions);
-    }
+    
 
-  async sendMessage(chatId: number | string, message: string, options?: any) {
-  if (!this.bot || !this.isActive) return;
+   async sendMessage(chatId: number | string, message: string, options?: any) {
+   if (!this.bot || !this.isActive) return;
 
-  try {
+   try {
     const messageOptions: any = {
       parse_mode: 'Markdown'
     };
@@ -330,11 +330,11 @@ export class TelegramBotService {
     }
 
     await this.bot.sendMessage(chatId, message, messageOptions);
-    console.log(`✅ Message sent to ${chatId}`);
-  } catch (error) {
-    console.error('❌ Error sending message:', error);
-    throw error;
-  }
+     console.log(`✅ Message sent to ${chatId}`);
+   } catch (error) {
+     console.error('❌ Error sending message:', error);
+     throw error;
+   }
  }
 
   // NEW: Send vendor response with optional keyboard
