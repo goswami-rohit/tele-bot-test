@@ -2,6 +2,17 @@
 import { storage } from "./storage";
 import { LocationManager } from './locationManager';
 
+interface ConversationData {
+  [key: string]: any;
+}
+interface ConversationResponse {
+  message: string;
+  nextStep: string;
+  data?: ConversationData;
+  action?: string;
+  inlineKeyboard?: any[][];
+}
+
 export interface ConversationContextV {
   chatId: string;
   userType?: 'telegram' | 'web';
@@ -29,7 +40,8 @@ const CEMENT_TYPES = [
 ];
 
 const TMT_SIZES = ['5.5mm', '6mm', '8mm', '10mm', '12mm', '16mm', '18mm', '20mm', '24mm', '26mm', '28mm', '32mm', '36mm', '40mm'];
-
+const CEMENT_COMPANIES = ['ACC', 'UltraTech', 'Ambuja', 'Shree Cement', 'JK Cement', 'Others'];
+const TMT_COMPANIES = ['TATA', 'SAIL', 'RINL', 'JSW', 'JINDAL', 'Others'];
 export class ConversationFlowV {
   // Helper function to capitalize city names
   private capitalizeCity(cityName: string): string {
@@ -422,114 +434,158 @@ Vendors will send you detailed quotes shortly!`,
 }
 
     // Vendor registration flow
-    if (step === 'vendor_company') {
-      return {
-        message: `📱 What's your phone number?`,
-        nextStep: 'vendor_phone',
-        data: { ...data, company: message }
-      };
-    }
+   // VENDOR REGISTRATION FLOW - FIXED VERSION
+if (step === 'vendor_company') {
+  return {
+    message: `📱 What's your phone number?`,
+    nextStep: 'vendor_phone_step',
+    data: { ...data, company: message }
+  };
+}
 
-    if (step === 'vendor_phone') {
-      return {
-        message: `📍 Which city are you based in?`,
-        nextStep: 'vendor_city',
-        data: { ...data, phone: message }
-      };
-    }
-
-    if (step === 'vendor_city') {
+if (step === 'vendor_phone_step') {
   const cities = LocationManager.getCities();
   
   return {
-    message: `📍 Select which city you operate in (reply with number):
-${cities.map((city, index) => `${index + 1}. ${city.name}`).join('\n')}`,
+    message: `📍 Select which city you operate in:`,
     nextStep: 'vendor_city_select',
-    data: { ...data },
-    inlineKeyboard: cities.map((city, index) => [{
+    data: { ...data, phone: message },
+    inlineKeyboard: cities.map((city) => [{
       text: city.name,
-      callback_data: `city_${city.id}`
+      callback_data: `vcity_${city.id}`
     }])
   };
 }
-// Add city selection step:
+
+// Handle city selection (from inline keyboard or number)
 if (step === 'vendor_city_select') {
   const cities = LocationManager.getCities();
-  const selectedIndex = parseInt(message.trim()) - 1;
-  const selectedCity = cities[selectedIndex];
+  let selectedCity;
+
+  // Handle inline keyboard callback
+  if (message.startsWith('vcity_')) {
+    const cityId = message.replace('vcity_', '');
+    selectedCity = cities.find(city => city.id === cityId);
+  } else {
+    // Handle number input as fallback
+    const selectedIndex = parseInt(message.trim()) - 1;
+    selectedCity = cities[selectedIndex];
+  }
+
   if (!selectedCity) {
     return {
-      message: `Please select a valid number (1-${cities.length})`,
-      nextStep: 'vendor_city_select'
+      message: `Please select a valid city option`,
+      nextStep: 'vendor_city_select',
+      data: data
     };
   }
+
   return {
-    message: `🏘️ Select which locality you operate in (reply with number):
-${selectedCity.localities.map((locality, index) => `${index + 1}. ${locality.name}`).join('\n')}`,
+    message: `🏘️ Select which locality you operate in:`,
     nextStep: 'vendor_locality_select',
     data: { ...data, selectedCityId: selectedCity.id, selectedCityName: selectedCity.name },
-    inlineKeyboard: selectedCity.localities.map((locality, index) => [{
+    inlineKeyboard: selectedCity.localities.map((locality) => [{
       text: locality.name,
-      callback_data: `locality_${locality.id}`
+      callback_data: `vloc_${locality.id}`
     }])
   };
 }
-// Add locality selection step:
+
+// Handle locality selection (from inline keyboard or number)
 if (step === 'vendor_locality_select') {
   const cities = LocationManager.getCities();
   const selectedCity = cities.find(city => city.id === data.selectedCityId);
   
   if (!selectedCity) {
     return {
-      message: `Error: Please start over.`,
-      nextStep: 'vendor_city'
+      message: `Error: Please start over with /start`,
+      nextStep: 'user_type',
+      data: {}
     };
   }
-  const selectedIndex = parseInt(message.trim()) - 1;
-  const selectedLocality = selectedCity.localities[selectedIndex];
+
+  let selectedLocality;
+
+  // Handle inline keyboard callback
+  if (message.startsWith('vloc_')) {
+    const localityId = message.replace('vloc_', '');
+    selectedLocality = selectedCity.localities.find(locality => locality.id === localityId);
+  } else {
+    // Handle number input as fallback
+    const selectedIndex = parseInt(message.trim()) - 1;
+    selectedLocality = selectedCity.localities[selectedIndex];
+  }
+
   if (!selectedLocality) {
     return {
-      message: `Please select a valid number (1-${selectedCity.localities.length})`,
-      nextStep: 'vendor_locality_select'
+      message: `Please select a valid locality option`,
+      nextStep: 'vendor_locality_select',
+      data: data
     };
   }
+
   // Store as "locality, city" format
   const fullLocation = `${selectedLocality.name}, ${selectedCity.name}`;
+
   return {
-    message: `✅ Great! You'll serve customers in ${fullLocation}.
-📱 Please provide your contact phone number:`,
-    nextStep: 'vendor_phone',
-    data: { ...data, city: fullLocation } // Store full "locality, city" string
+    message: `🏗️ What materials do you deal with?`,
+    nextStep: 'vendor_materials',
+    data: { ...data, city: fullLocation },
+    inlineKeyboard: [
+      [{ text: 'Cement only', callback_data: 'vmat_cement' }],
+      [{ text: 'TMT Bars only', callback_data: 'vmat_tmt' }],
+      [{ text: 'Both Cement & TMT', callback_data: 'vmat_both' }]
+    ]
   };
 }
 
-    if (step === 'vendor_materials') {
-      let materials: string[] = [];
-      if (message === '1') materials = ['cement'];
-      else if (message === '2') materials = ['tmt'];
-      else if (message === '3') materials = ['cement', 'tmt'];
-      else {
-        return {
-          message: `Please reply with 1, 2, or 3`,
-          nextStep: 'vendor_materials'
-        };
-      }
+// Handle materials selection
+if (step === 'vendor_materials') {
+  let materials: string[] = [];
+  let materialDisplay = '';
 
-      return {
-        message: `✅ Excellent! Your vendor registration is complete.
+  // Handle inline keyboard callback
+  if (message === 'vmat_cement') {
+    materials = ['cement'];
+    materialDisplay = 'Cement';
+  } else if (message === 'vmat_tmt') {
+    materials = ['tmt'];
+    materialDisplay = 'TMT Bars';
+  } else if (message === 'vmat_both') {
+    materials = ['cement', 'tmt'];
+    materialDisplay = 'Cement & TMT Bars';
+  } else if (message === '1') {
+    materials = ['cement'];
+    materialDisplay = 'Cement';
+  } else if (message === '2') {
+    materials = ['tmt'];
+    materialDisplay = 'TMT Bars';
+  } else if (message === '3') {
+    materials = ['cement', 'tmt'];
+    materialDisplay = 'Cement & TMT Bars';
+  } else {
+    return {
+      message: `Please select a valid material option`,
+      nextStep: 'vendor_materials',
+      data: data
+    };
+  }
 
-    📋 **Registration Summary:**
-    🏢 Company: ${data.company}
-    📱 Phone: ${data.phone}
-    📍 City: ${data.city}
-    🏗️ Materials: ${materials.map(m => m === 'cement' ? 'Cement' : 'TMT Bars').join(', ')}
+  return {
+    message: `✅ Excellent! Your vendor registration is complete.
 
-    You'll now receive inquiry notifications and can send quotes!`,
-        nextStep: 'completed',
-        action: 'register_vendor',
-        data: { ...data, materials }
-      };
-    }
+📋 **Registration Summary:**
+🏢 Company: ${data.company}
+📱 Phone: ${data.phone}
+📍 Location: ${data.city}
+🏗️ Materials: ${materialDisplay}
+
+You'll now receive inquiry notifications and can send quotes!`,
+    nextStep: 'completed',
+    action: 'register_vendor',
+    data: { ...data, materials }
+  };
+}
 
     // Default response
     return {
