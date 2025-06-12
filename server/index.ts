@@ -2,6 +2,19 @@ import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import cors from 'cors';
+
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://mycoco.site',
+    'https://telegram-chat-api.onrender.com',
+    'https://tele-bot-test.onrender.com', 
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 const app = express();
 app.use(express.json());
