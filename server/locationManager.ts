@@ -26,8 +26,11 @@ export const LOCATION_DATA: LocationData = {
       name: 'Guwahati',
       localities: [
         { id: 'ganeshguri', name: 'Ganeshguri' },
+        { id: 'ganesh-mandir', name: 'Ganesh Mandir' },
+        { id: 'kahilipara', name: 'Kahilipara' },
         { id: 'zoo_road', name: 'Zoo Road' },
-        { id: 'chandmari', name: 'Chandmari' },
+        { id: 'beltola', name: 'Beltola' },
+        { id: 'hatigaon', name: 'Hatigaon' },
       ]
     }
     // Add more cities here when needed
