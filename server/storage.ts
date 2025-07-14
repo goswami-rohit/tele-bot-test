@@ -8,6 +8,7 @@ import {
   botConfig,
   vendorRates,
   apiKeys,
+  salesRecords,
   type Vendor,
   type InsertVendor,
   type Inquiry,
@@ -97,51 +98,51 @@ export class DatabaseStorage {
   }
 
   async getVendorsByMaterialAndCity(material: string, city: string) {
-  try {
-    console.log(`🔍 Searching vendors for: ${material} in location: ${city}`);
-    
-    // Get all vendors first
-    const allVendors = await this.db.select().from(vendors);
-    console.log(`📋 Total vendors in database: ${allVendors.length}`);
-    
-    // Add null check and ensure we have an array
-    if (!allVendors || !Array.isArray(allVendors)) {
-      console.log(`❌ No vendors array returned from database`);
-      return [];
-    }
-    
-    // Filter vendors by material and city
-    const filteredVendors = allVendors.filter(vendor => {
-      // Check if vendor has materials array
-      if (!vendor.materials || !Array.isArray(vendor.materials)) {
-        console.log(`⚠️ Vendor ${vendor.name} has invalid materials:`, vendor.materials);
-        return false;
+    try {
+      console.log(`🔍 Searching vendors for: ${material} in location: ${city}`);
+
+      // Get all vendors first
+      const allVendors = await this.db.select().from(vendors);
+      console.log(`📋 Total vendors in database: ${allVendors.length}`);
+
+      // Add null check and ensure we have an array
+      if (!allVendors || !Array.isArray(allVendors)) {
+        console.log(`❌ No vendors array returned from database`);
+        return [];
       }
-      
-      // Check material match
-      const materialMatch = vendor.materials.includes(material);
-      
-      // Check city match (exact or partial)
-      const cityMatch = vendor.city && (
-        vendor.city.includes(city) || 
-        city.includes(vendor.city) ||
-        vendor.city.toLowerCase().includes(city.toLowerCase()) ||
-        city.toLowerCase().includes(vendor.city.toLowerCase())
-      );
-      
-      console.log(`🔍 Vendor ${vendor.name}: material=${materialMatch}, city=${cityMatch}, materials=${vendor.materials}, vendorCity=${vendor.city}`);
-      
-      return materialMatch && cityMatch;
-    });
-    
-    console.log(`✅ Found ${filteredVendors.length} matching vendors`);
-    return filteredVendors;
-    
-  } catch (error) {
-    console.error('Error fetching vendors:', error);
-    return []; // Return empty array instead of undefined
+
+      // Filter vendors by material and city
+      const filteredVendors = allVendors.filter(vendor => {
+        // Check if vendor has materials array
+        if (!vendor.materials || !Array.isArray(vendor.materials)) {
+          console.log(`⚠️ Vendor ${vendor.name} has invalid materials:`, vendor.materials);
+          return false;
+        }
+
+        // Check material match
+        const materialMatch = vendor.materials.includes(material);
+
+        // Check city match (exact or partial)
+        const cityMatch = vendor.city && (
+          vendor.city.includes(city) ||
+          city.includes(vendor.city) ||
+          vendor.city.toLowerCase().includes(city.toLowerCase()) ||
+          city.toLowerCase().includes(vendor.city.toLowerCase())
+        );
+
+        console.log(`🔍 Vendor ${vendor.name}: material=${materialMatch}, city=${cityMatch}, materials=${vendor.materials}, vendorCity=${vendor.city}`);
+
+        return materialMatch && cityMatch;
+      });
+
+      console.log(`✅ Found ${filteredVendors.length} matching vendors`);
+      return filteredVendors;
+
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+      return []; // Return empty array instead of undefined
+    }
   }
-}
 
   async updateVendor(vendorId: number, updates: Partial<Vendor>): Promise<Vendor> {
     const [vendor] = await this.db
@@ -737,9 +738,55 @@ export class DatabaseStorage {
     const result = await this.db.execute(sql`
     SELECT * FROM chat_messages 
     WHERE session_id = ${sessionId}
-    ORDER BY created_at ASC
-  `);
+    ORDER BY created_at ASC`);
     return result.rows || [];
   }
+
+  async createSalesRecord(data: {
+    salesType: string;
+    cementCompany?: string;
+    cementQty?: number;
+    cementPrice?: number;
+    tmtCompany?: string;
+    tmtSizes?: string[];
+    tmtPrices?: any;
+    projectOwner: string;
+    projectName: string;
+    projectLocation?: string;
+    completionTime: number;
+    contactNumber: string;
+    salesRepName?: string;
+    platform?: string;
+    sessionId?: string;
+  }) {
+    try {
+      console.log('💾 Creating sales record:', data);
+
+      const result = await this.db.insert(salesRecords).values({
+        salesType: data.salesType,
+        cementCompany: data.cementCompany,
+        cementQty: data.cementQty,
+        cementPrice: data.cementPrice?.toString(),
+        tmtCompany: data.tmtCompany,
+        tmtSizes: data.tmtSizes,
+        tmtPrices: data.tmtPrices,
+        projectOwner: data.projectOwner,
+        projectName: data.projectName,
+        projectLocation: data.projectLocation,
+        completionTime: data.completionTime,
+        contactNumber: data.contactNumber,
+        salesRepName: data.salesRepName,
+        platform: data.platform || 'web',
+        sessionId: data.sessionId
+      }).returning();
+
+      console.log('✅ Sales record created:', result[0]);
+      return result[0];
+    } catch (error) {
+      console.error('❌ Error creating sales record:', error);
+      throw error;
+    }
+  }
+
 }
 export const storage = new DatabaseStorage();

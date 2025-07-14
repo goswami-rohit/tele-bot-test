@@ -154,7 +154,7 @@ export class TelegramBotService {
 
   private async handleLocationCallback(query: any, data: string) {
     const chatId = query.message.chat.id;
-    
+
     console.log(`🔘 Location callback: ${data}`);
 
     let session = this.userSessions.get(chatId.toString());
@@ -617,16 +617,16 @@ For your inquiry in ${inquiry.city}
 
         } else {
           console.log(`📢 Finding vendors for material "${data.material}" in location "${data.city}"`);
-          
+
           const vendors = await storage.getVendorsByMaterialAndCity(data.material, data.city);
           console.log(`📋 Found ${vendors.length} vendors for ${data.material}`);
-          
+
           if (vendors.length === 0) {
             console.log(`⚠️ No vendors found for material "${data.material}" in city "${data.city}"`);
             const cityOnly = data.city.split(', ').pop() || data.city;
             const fallbackVendors = await storage.getVendorsByMaterialAndCity(data.material, cityOnly);
             console.log(`🔍 Fallback search found ${fallbackVendors.length} vendors in ${cityOnly}`);
-            
+
             if (fallbackVendors.length > 0) {
               await this.notifyVendorsOfNewInquiry(inquiryId, inquiryData, fallbackVendors);
             }
@@ -652,6 +652,28 @@ For your inquiry in ${inquiry.city}
         console.log(`💾 Creating vendor in storage:`, vendorData);
         await storage.createVendor(vendorData);
         console.log(`✅ Vendor ${vendorId} registered successfully`);
+
+      } else if (action === 'create_sales_record') {
+        console.log(`📊 Creating sales record:`, data);
+
+        const salesData = {
+          salesType: data.salesType,
+          cementCompany: data.cementCompany,
+          cementQty: data.cementQty,
+          cementPrice: data.cementPrice,
+          tmtCompany: data.tmtCompany,
+          tmtSizes: data.tmtSizes,
+          tmtPrices: data.tmtPrices,
+          projectOwner: data.projectOwner,
+          projectName: data.projectName,
+          projectLocation: data.projectLocation,
+          completionTime: data.completionTime,
+          contactNumber: data.contactNumber,
+          platform: platform,
+          sessionId: platform === 'web' ? chatIdOrSessionId.toString() : undefined
+        };
+        await storage.createSalesRecord(salesData);
+        console.log(`✅ Sales record created successfully`);
       }
     } catch (error) {
       console.error(`❌ Error handling ${action}:`, error);

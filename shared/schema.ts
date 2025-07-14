@@ -1,4 +1,4 @@
-import { pgTable, text, serial, varchar, integer, boolean, timestamp, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, varchar, integer, boolean, timestamp, decimal, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -90,6 +90,26 @@ export const apiKeys = pgTable('api_keys', {
   permissions: text('permissions').array().default([]),
   rateLimitPerHour: integer('rate_limit_per_hour').default(1000),
   usageCount: integer('usage_count').default(0)
+});
+
+export const salesRecords = pgTable('sales_records', {
+  id: serial('id').primaryKey(),
+  salesType: varchar('sales_type', { length: 10 }).notNull(),
+  cementCompany: varchar('cement_company', { length: 100 }),
+  cementQty: integer('cement_qty'),
+  cementPrice: decimal('cement_price', { precision: 10, scale: 2 }),
+  tmtCompany: varchar('tmt_company', { length: 100 }),
+  tmtSizes: text('tmt_sizes').array(),
+  tmtPrices: jsonb('tmt_prices'),
+  projectOwner: varchar('project_owner', { length: 200 }).notNull(),
+  projectName: varchar('project_name', { length: 300 }).notNull(),
+  projectLocation: varchar('project_location', { length: 200 }),
+  completionTime: integer('completion_time').notNull(),
+  contactNumber: varchar('contact_number', { length: 15 }).notNull(),
+  salesRepName: varchar('sales_rep_name', { length: 100 }),
+  recordedAt: timestamp('recorded_at').defaultNow(),
+  platform: varchar('platform', { length: 20 }).default('web'),
+  sessionId: varchar('session_id', { length: 100 })
 });
 
 // Insert schemas
