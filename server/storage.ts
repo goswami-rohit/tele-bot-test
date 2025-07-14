@@ -750,6 +750,7 @@ export class DatabaseStorage {
     tmtCompany?: string;
     tmtSizes?: string[];
     tmtPrices?: any;
+    tmtQuantities?: any;
     projectOwner: string;
     projectName: string;
     projectLocation?: string;
@@ -770,6 +771,7 @@ export class DatabaseStorage {
         tmtCompany: data.tmtCompany,
         tmtSizes: data.tmtSizes,
         tmtPrices: data.tmtPrices,
+        tmtQuantities: data.tmtQuantities,
         projectOwner: data.projectOwner,
         projectName: data.projectName,
         projectLocation: data.projectLocation,

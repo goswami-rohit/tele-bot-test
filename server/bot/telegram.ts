@@ -664,6 +664,7 @@ For your inquiry in ${inquiry.city}
           tmtCompany: data.tmtCompany,
           tmtSizes: data.tmtSizes,
           tmtPrices: data.tmtPrices,
+          tmtQuantities: data.tmtQuantities,
           projectOwner: data.projectOwner,
           projectName: data.projectName,
           projectLocation: data.projectLocation,

@@ -454,14 +454,14 @@ Vendors will send you detailed quotes shortly!`,
 
 First, select the cement company:
 
-1️⃣ Ambuja
-2️⃣ ACC
-3️⃣ Ultratech
-4️⃣ MAX
-5️⃣ DALMIA
-6️⃣ Topcem
-7️⃣ Black Tiger
-8️⃣ Others`,
+1. Ambuja
+2. ACC
+3. Ultratech
+4. MAX
+5. DALMIA
+6. Topcem
+7. Black Tiger
+8. Others`,
           nextStep: 'cement_company_select',
           data: { ...data, salesType: 'cement' }
         };
@@ -471,11 +471,11 @@ First, select the cement company:
 
 First, select the TMT company:
 
-1️⃣ Tata Tiscon
-2️⃣ JSW
-3️⃣ Shyam Steel
-4️⃣ Xtech
-5️⃣ Others`,
+1. Tata Tiscon
+2. JSW
+3. Shyam Steel
+4. Xtech
+5. Others`,
           nextStep: 'tmt_company_select',
           data: { ...data, salesType: 'tmt' }
         };
@@ -485,20 +485,20 @@ First, select the TMT company:
 
 Let's start with cement company:
 
-1️⃣ Ambuja
-2️⃣ ACC
-3️⃣ Ultratech
-4️⃣ MAX
-5️⃣ DALMIA
-6️⃣ Topcem
-7️⃣ Black Tiger
-8️⃣ Others`,
+1. Ambuja
+2. ACC
+3. Ultratech
+4. MAX
+5. DALMIA
+6. Topcem
+7. Black Tiger
+8. Others`,
           nextStep: 'cement_company_select',
           data: { ...data, salesType: 'both', currentItem: 'cement' }
         };
       } else {
         return {
-          message: 'Please select a valid option:\n\n1️⃣ Cement\n2️⃣ TMT\n3️⃣ Both',
+          message: 'Please select a valid option:\n\n1. Cement\n2. TMT\n3. Both',
           nextStep: 'sales_item_type',
           data: data
         };
@@ -536,7 +536,7 @@ Company Name: ____`,
         };
       } else {
         return {
-          message: 'Please select a valid option (1-8):\n\n1️⃣ Ambuja\n2️⃣ ACC\n3️⃣ Ultratech\n4️⃣ MAX\n5️⃣ DALMIA\n6️⃣ Topcem\n7️⃣ Black Tiger\n8️⃣ Others',
+          message: 'Please select a valid option (1-8):\n\n1. Ambuja\n2. ACC\n3. Ultratech\n4. MAX\n5. DALMIA\n6. Topcem\n7. Black Tiger\n8. Others',
           nextStep: 'cement_company_select',
           data: data
         };
@@ -612,11 +612,11 @@ Now let's record TMT details:
 
 Select the TMT company:
 
-1️⃣ Tata Tiscon
-2️⃣ JSW
-3️⃣ Shyam Steel
-4️⃣ Xtech
-5️⃣ Others`,
+1. Tata Tiscon
+2. JSW
+3. Shyam Steel
+4. Xtech
+5. Others`,
           nextStep: 'tmt_company_select',
           data: { ...salesData, currentItem: 'tmt' }
         };
@@ -649,10 +649,10 @@ Enter the full name of the project owner/client`,
 
 Select the TMT sizes sold (multiple selections allowed):
 
-1️⃣ 5.5mm    2️⃣ 6mm     3️⃣ 8mm     4️⃣ 10mm
-5️⃣ 12mm     6️⃣ 16mm    7️⃣ 18mm    8️⃣ 20mm
-9️⃣ 24mm     🔟 26mm    1️⃣1️⃣ 28mm   1️⃣2️⃣ 32mm
-1️⃣3️⃣ 36mm   1️⃣4️⃣ 40mm
+1. 5.5mm    2. 6mm     3. 8mm     4. 10mm
+5. 12mm     6. 16mm    7. 18mm    8. 20mm
+9. 24mm     10. 26mm   11. 28mm   12. 32mm
+13. 36mm    14. 40mm
 
 Enter the numbers separated by commas (e.g., 1,4,5,8 for 5.5mm, 10mm, 12mm, 20mm)`,
           nextStep: 'tmt_sizes_select',
@@ -670,7 +670,7 @@ Company Name: ____`,
         };
       } else {
         return {
-          message: 'Please select a valid option (1-5):\n\n1️⃣ Tata Tiscon\n2️⃣ JSW\n3️⃣ Shyam Steel\n4️⃣ Xtech\n5️⃣ Others',
+          message: 'Please select a valid option (1-5):\n\n1. Tata Tiscon\n2. JSW\n3. Shyam Steel\n4. Xtech\n5. Others',
           nextStep: 'tmt_company_select',
           data: data
         };
@@ -692,10 +692,10 @@ Company Name: ____`,
 
 Select the TMT sizes sold (multiple selections allowed):
 
-1️⃣ 5.5mm    2️⃣ 6mm     3️⃣ 8mm     4️⃣ 10mm
-5️⃣ 12mm     6️⃣ 16mm    7️⃣ 18mm    8️⃣ 20mm
-9️⃣ 24mm     🔟 26mm    1️⃣1️⃣ 28mm   1️⃣2️⃣ 32mm
-1️⃣3️⃣ 36mm   1️⃣4️⃣ 40mm
+1. 5.5mm    2. 6mm     3. 8mm     4. 10mm
+5. 12mm     6. 16mm    7. 18mm    8. 20mm
+9. 24mm     10. 26mm   11. 28mm   12. 32mm
+13. 36mm    14. 40mm
 
 Enter the numbers separated by commas (e.g., 1,4,5,8 for 5.5mm, 10mm, 12mm, 20mm)`,
         nextStep: 'tmt_sizes_select',
@@ -727,19 +727,73 @@ Enter the numbers separated by commas (e.g., 1,4,5,8 for 5.5mm, 10mm, 12mm, 20mm
       return {
         message: `✅ Selected sizes: ${selectedSizes.join(', ')}
 
+Now enter the quantity for each size:
+
+Quantity for ${firstSize} (in kg): ____
+
+Enter the quantity in kg (e.g., 100, 500, 1000)`,
+        nextStep: 'tmt_qty_input',
+        data: {
+          ...data,
+          tmtSizes: selectedSizes,
+          currentQtyIndex: 0,
+          tmtQuantities: {}
+        }
+      };
+    }
+
+    // Handle TMT quantity input
+    if (step === 'tmt_qty_input') {
+      const qty = parseInt(message);
+      if (isNaN(qty) || qty <= 0) {
+        const currentSize = data.tmtSizes[data.currentQtyIndex];
+        return {
+          message: `Please enter a valid quantity for ${currentSize} (e.g., 100, 500, 1000)`,
+          nextStep: 'tmt_qty_input',
+          data: data
+        };
+      }
+
+      const currentSize = data.tmtSizes[data.currentQtyIndex];
+      const updatedQuantities = { ...data.tmtQuantities, [currentSize]: qty };
+      const nextIndex = data.currentQtyIndex + 1;
+
+      // Check if more sizes need quantities
+      if (nextIndex < data.tmtSizes.length) {
+        const nextSize = data.tmtSizes[nextIndex];
+        return {
+          message: `✅ Quantity for ${currentSize}: ${qty} kg recorded
+
+Quantity for ${nextSize} (in kg): ____
+
+Enter the quantity in kg (e.g., 100, 500, 1000)`,
+          nextStep: 'tmt_qty_input',
+          data: {
+            ...data,
+            tmtQuantities: updatedQuantities,
+            currentQtyIndex: nextIndex
+          }
+        };
+      } else {
+        // All quantities collected, now ask for prices
+        const firstSize = data.tmtSizes[0];
+        return {
+          message: `✅ All quantities recorded
+
 Now enter the price for each size:
 
 Price for ${firstSize} (₹ per kg): ____
 
 Enter the price in rupees (e.g., 65, 70, 75)`,
-        nextStep: 'tmt_price_input',
-        data: {
-          ...data,
-          tmtSizes: selectedSizes,
-          currentPriceIndex: 0,
-          tmtPrices: {}
-        }
-      };
+          nextStep: 'tmt_price_input',
+          data: {
+            ...data,
+            tmtQuantities: updatedQuantities,
+            currentPriceIndex: 0,
+            tmtPrices: {}
+          }
+        };
+      }
     }
 
     // Handle TMT price input
@@ -813,8 +867,8 @@ Now for the registered project name:
 
 **Registered Project Name:**
 
-1️⃣ Search in RERA Records
-2️⃣ Enter manually`,
+1. Search in RERA Records
+2. Enter manually`,
         nextStep: 'project_name_method',
         data: { ...data, projectOwner: message }
       };
@@ -848,13 +902,13 @@ Enter the project name and/or location:
 
 Project Name/Location: ____
 
-Example: "Green Valley Apartments, Guwahati" or "Sunrise Complex, Ganeshguri"`,
+Example: "XYZ Apartments, Guwahati" or "ABC Complex, Ganeshguri"`,
           nextStep: 'manual_project_input',
           data: data
         };
       } else {
         return {
-          message: 'Please select a valid option:\n\n1️⃣ Search in RERA Records\n2️⃣ Enter manually',
+          message: 'Please select a valid option:\n\n1. Search in RERA Records\n2. Enter manually',
           nextStep: 'project_name_method',
           data: data
         };
@@ -895,12 +949,12 @@ Example: "Green Valley Apartments, Guwahati" or "Sunrise Complex, Ganeshguri"`,
       if (matchedProjects.length > 0) {
         let resultMessage = `🔍 **Search Results:**\n\n`;
         matchedProjects.forEach((project, index) => {
-          resultMessage += `${index + 1}️⃣ **${project.name}**\n`;
+          resultMessage += `${index + 1}. **${project.name}**\n`;
           resultMessage += `   📋 ID: ${project.id}\n`;
           resultMessage += `   🏢 Promoter: ${project.promoter}\n`;
           resultMessage += `   📍 Location: ${project.location}\n\n`;
         });
-        resultMessage += `${matchedProjects.length + 1}️⃣ Not here. Enter manually\n\n`;
+        resultMessage += `${matchedProjects.length + 1}. Not here. Enter manually\n\n`;
         resultMessage += `Select your project (1-${matchedProjects.length + 1}):`;
 
         return {
@@ -913,8 +967,8 @@ Example: "Green Valley Apartments, Guwahati" or "Sunrise Complex, Ganeshguri"`,
           message: `❌ No projects found for "${message}"
 
 Try different keywords or select:
-1️⃣ Search again
-2️⃣ Enter manually
+1. Search again
+2. Enter manually
 
 Type your choice:`,
           nextStep: 'rera_no_results',
@@ -1000,7 +1054,7 @@ Example: "Green Valley Apartments, Guwahati" or "Sunrise Complex, Ganeshguri"`,
         };
       } else {
         return {
-          message: 'Please select a valid option:\n\n1️⃣ Search again\n2️⃣ Enter manually',
+          message: 'Please select a valid option:\n\n1. Search again\n2. Enter manually',
           nextStep: 'rera_no_results',
           data: data
         };
@@ -1065,21 +1119,31 @@ Enter your 10-digit mobile number`,
         };
       }
 
-      return {
-        message: `✅ **Sales Record Complete!**
+      let summaryMessage = `✅ **Sales Record Complete!**
 
 Thank you for providing your sales information. Your record has been successfully saved.
 
 📊 **Summary:**
-${data.salesType === 'cement' ? `🏗️ Cement: ${data.cementQty} bags @ ₹${data.cementPrice}/bag` : ''}
-${data.salesType === 'tmt' ? `🔧 TMT: ${Object.entries(data.tmtPrices).map(([size, price]) => `${size} @ ₹${price}/kg`).join(', ')}` : ''}
-${data.salesType === 'both' ? `🏗️ Cement: ${data.cementQty} bags @ ₹${data.cementPrice}/bag\n🔧 TMT: ${Object.entries(data.tmtPrices).map(([size, price]) => `${size} @ ₹${price}/kg`).join(', ')}` : ''}
+`;
+
+      if (data.salesType === 'cement') {
+        summaryMessage += `🏗️ Cement: ${data.cementQty} bags @ ₹${data.cementPrice}/bag`;
+      } else if (data.salesType === 'tmt') {
+        summaryMessage += `🔧 TMT: ${Object.entries(data.tmtQuantities).map(([size, qty]) => `${size}: ${qty}kg @ ₹${data.tmtPrices[size]}/kg`).join(', ')}`;
+      } else if (data.salesType === 'both') {
+        summaryMessage += `🏗️ Cement: ${data.cementQty} bags @ ₹${data.cementPrice}/bag\n🔧 TMT: ${Object.entries(data.tmtQuantities).map(([size, qty]) => `${size}: ${qty}kg @ ₹${data.tmtPrices[size]}/kg`).join(', ')}`;
+      }
+
+      summaryMessage += `
 👤 Owner: ${data.projectOwner}
 🏗️ Project: ${data.projectName}
 ⏱️ Completion: ${data.completionTime} years
 📱 Contact: ${phone}
 
-Type /start to record another sale.`,
+Type /start to record another sale.`;
+
+      return {
+        message: summaryMessage,
         nextStep: 'completed',
         action: 'create_sales_record',
         data: { ...data, contactNumber: phone }

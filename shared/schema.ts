@@ -101,6 +101,7 @@ export const salesRecords = pgTable('sales_records', {
   tmtCompany: varchar('tmt_company', { length: 100 }),
   tmtSizes: text('tmt_sizes').array(),
   tmtPrices: jsonb('tmt_prices'),
+  tmtQuantities: jsonb('tmt_quantities'),
   projectOwner: varchar('project_owner', { length: 200 }).notNull(),
   projectName: varchar('project_name', { length: 300 }).notNull(),
   projectLocation: varchar('project_location', { length: 200 }),
