@@ -192,69 +192,79 @@ export class TelegramBotService {
   }
 
   public async handleWebUserMessage(msg: any) {
-    const text = msg.text;
-    const match = text.match(/\[API\] Session: ([^|]+) \| User: ([^\n]+)\n(.+)/);
+    // const text = msg.text;
+    // const match = text.match(/\[API\] Session: ([^|]+) \| User: ([^\n]+)\n(.+)/);
 
-    if (match) {
-      const [, sessionId, userId, userMessage, userEmail] = match;
-      console.log('🌐 Processing web user message:', { sessionId, userId, userMessage, userEmail });
+    // if (match) {
+    //   const [, sessionId, userMessage, userEmail] = match;
+    //   console.log('🌐 Processing web user message:', { sessionId, userMessage, userEmail });
 
-      let session = this.webSessions.get(sessionId);
-      if (!session) {
-        session = { step: 'user_type', userType: 'web', sessionId, messages: [], userEmail: userEmail || null };
-        this.webSessions.set(sessionId, session);
-      } else {
-        // If the session exists, you may want to update the email
-        if (!session.userEmail && userEmail) {
-          session.userEmail = userEmail;
-        }
-      }
+    const { sessionId, userMessage, userEmail } = msg;
 
-      session.messages.push({
-        senderType: 'user',
-        message: userMessage,
-        timestamp: new Date()
-      });
+    console.log('🌐 Processing web user message:', { sessionId, userMessage, userEmail });
 
-      const context: ConversationContextB = {
-        chatId: sessionId,
-        userType: 'web',
-        sessionId,
-        step: session.step,
-        data: session.data,
-        userEmail: session.userEmail
-      };
+    // Stop if a required field is missing
+    if (!sessionId || !userMessage) {
+      console.error('❌ Received an invalid message payload:', msg);
+      return;
+    }
 
-      const response = await conversationFlowB.processMessage(context, userMessage);
-
-      session.step = response.nextStep;
-      session.data = { ...session.data, ...response.data };
-
-      session.messages.push({
-        senderType: 'bot',
-        message: response.message,
-        timestamp: new Date()
-      });
-
+    let session = this.webSessions.get(sessionId);
+    if (!session) {
+      session = { step: 'user_type', userType: 'web', sessionId, messages: [], userEmail: userEmail || null };
       this.webSessions.set(sessionId, session);
-
-      if (response.action) {
-        await this.handleCompletionAction(response.action, response.data, sessionId, 'web', session.userEmail);
-      }
-
-      if (global.io) {
-        global.io.to(`session-${sessionId}`).emit('bot-message', {
-          sessionId,
-          message: response.message,
-          timestamp: new Date(),
-          senderType: 'bot'
-        });
-
-        console.log('✅ Response sent to web user via Socket.io');
-      } else {
-        console.error('❌ Socket.io not available');
+    } else {
+      // If the session exists, you may want to update the email
+      if (!session.userEmail && userEmail) {
+        session.userEmail = userEmail;
       }
     }
+
+    session.messages.push({
+      senderType: 'user',
+      message: userMessage,
+      timestamp: new Date()
+    });
+
+    const context: ConversationContextB = {
+      chatId: sessionId,
+      userType: 'web',
+      sessionId,
+      step: session.step,
+      data: session.data,
+      userEmail: session.userEmail
+    };
+
+    const response = await conversationFlowB.processMessage(context, userMessage);
+
+    session.step = response.nextStep;
+    session.data = { ...session.data, ...response.data };
+
+    session.messages.push({
+      senderType: 'bot',
+      message: response.message,
+      timestamp: new Date()
+    });
+
+    this.webSessions.set(sessionId, session);
+
+    if (response.action) {
+      await this.handleCompletionAction(response.action, response.data, sessionId, 'web', session.userEmail);
+    }
+
+    if (global.io) {
+      global.io.to(`session-${sessionId}`).emit('bot-message', {
+        sessionId,
+        message: response.message,
+        timestamp: new Date(),
+        senderType: 'bot'
+      });
+
+      console.log('✅ Response sent to web user via Socket.io');
+    } else {
+      console.error('❌ Socket.io not available');
+    }
+    //}
   }
 
   async handleIncomingMessage(msg: any) {
@@ -679,7 +689,7 @@ For your inquiry in ${inquiry.city}
           contactNumber: data.contactNumber,
           platform: platform,
           sessionId: platform === 'web' ? chatIdOrSessionId.toString() : undefined,
-          userEmail: userEmail || data.userEmail
+          userEmail: userEmail || data.userEmail || session.userEmail
         };
         await storage.createSalesRecord(salesData);
         console.log(`✅ Sales record created successfully`);
