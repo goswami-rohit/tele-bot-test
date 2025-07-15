@@ -4,6 +4,7 @@ import { conversationFlowB, type ConversationContextB } from "../conversationFlo
 import { conversationFlowV, type ConversationContextV } from "../conversationFlowV";
 import { vendorResponseFlow } from "../vResponseFlow";
 import { Server as SocketIOServer } from 'socket.io';
+import { googleSheetsService } from '../googleSheetsService';
 
 declare global {
   var io: SocketIOServer | undefined;

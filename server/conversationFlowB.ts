@@ -865,10 +865,10 @@ Enter the full name of the project owner/client`,
 
 Now for the registered project name:
 
-**Registered Project Name:**
+**Enter Registered Project Name:**
 
-1. Search in RERA Records
-2. Enter manually`,
+
+1. Enter name`,
         nextStep: 'project_name_method',
         data: { ...data, projectOwner: message }
       };
@@ -876,25 +876,26 @@ Now for the registered project name:
 
     // Handle project name method selection
     if (step === 'project_name_method') {
-      if (message === '1') {
-        return {
-          message: `🔍 **RERA Records Search**
+//       if (message === '1') {
+//         return {
+//           message: `🔍 **RERA Records Search**
 
-🏗️ Search for your project in RERA database:
+// 🏗️ Search for your project in RERA database:
 
-Type keywords like:
-- Project name
-- Registration number  
-- Promoter name
-- Project location
+// Type keywords like:
+// - Project name
+// - Registration number  
+// - Promoter name
+// - Project location
 
-Or type "manual" to enter manually
+// Or type "manual" to enter manually
 
-Enter your search term:`,
-          nextStep: 'rera_search',
-          data: data
-        };
-      } else if (message === '2') {
+// Enter your search term:`,
+//           nextStep: 'rera_search',
+//           data: data
+//         };
+//      } else 
+        if (message === '1') {
         return {
           message: `📝 **Manual Project Entry**
 
@@ -908,7 +909,8 @@ Example: "XYZ Apartments, Guwahati" or "ABC Complex, Ganeshguri"`,
         };
       } else {
         return {
-          message: 'Please select a valid option:\n\n1. Search in RERA Records\n2. Enter manually',
+         // a valid option:\n\n1. Search in RERA Records\n2. Enter manually
+          message: 'Please select 1 to enter Name of the Project and/or Location of Project',
           nextStep: 'project_name_method',
           data: data
         };
