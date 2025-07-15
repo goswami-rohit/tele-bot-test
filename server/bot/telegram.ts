@@ -193,7 +193,7 @@ export class TelegramBotService {
 
   public async handleWebUserMessage(msg: any) {
     const text = msg.text;
-    const match = text.match(/\[API\] Session: ([^|]+) \| User: ([^\n]+)\| Email: ([^\n]+)\n(.+)/);
+    const match = text.match(/\[API\] Session: ([^|]+) \| User: ([^\n]+)\n(.+)/);
 
     if (match) {
       const [, sessionId, userMessage, userId, userEmail] = match;
