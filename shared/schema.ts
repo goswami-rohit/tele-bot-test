@@ -110,7 +110,8 @@ export const salesRecords = pgTable('sales_records', {
   salesRepName: varchar('sales_rep_name', { length: 100 }),
   recordedAt: timestamp('recorded_at').defaultNow(),
   platform: varchar('platform', { length: 20 }).default('web'),
-  sessionId: varchar('session_id', { length: 100 })
+  sessionId: varchar('session_id', { length: 100 }),
+  userEmail: text('user_email')
 });
 
 // Insert schemas

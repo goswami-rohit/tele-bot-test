@@ -193,15 +193,16 @@ export class TelegramBotService {
 
   public async handleWebUserMessage(msg: any) {
     const text = msg.text;
+    const userEmail = msg;
     const match = text.match(/\[API\] Session: ([^|]+) \| User: ([^\n]+)\n(.+)/);
 
     if (match) {
       const [, sessionId, userId, userMessage] = match;
-      console.log('🌐 Processing web user message:', { sessionId, userId, userMessage });
+      console.log('🌐 Processing web user message:', { sessionId, userId, userMessage, userEmail});
 
       let session = this.webSessions.get(sessionId);
       if (!session) {
-        session = { step: 'user_type', userType: 'web', sessionId, messages: [] };
+        session = { step: 'user_type', userType: 'web', sessionId, messages: [], userEmail: userEmail || null };
         this.webSessions.set(sessionId, session);
       }
 
@@ -216,7 +217,8 @@ export class TelegramBotService {
         userType: 'web',
         sessionId,
         step: session.step,
-        data: session.data
+        data: session.data,
+        userEmail: session.userEmail
       };
 
       const response = await conversationFlowB.processMessage(context, userMessage);
@@ -233,7 +235,7 @@ export class TelegramBotService {
       this.webSessions.set(sessionId, session);
 
       if (response.action) {
-        await this.handleCompletionAction(response.action, response.data, sessionId, 'web');
+        await this.handleCompletionAction(response.action, response.data, sessionId, 'web', session.userEmail);
       }
 
       if (global.io) {
@@ -568,7 +570,7 @@ For your inquiry in ${inquiry.city}
     }
   }
 
-  async handleCompletionAction(action: string, data: any, chatIdOrSessionId: string | number, platform: 'telegram' | 'web') {
+  async handleCompletionAction(action: string, data: any, chatIdOrSessionId: string | number, platform: 'telegram' | 'web', userEmail?: string) {
     console.log(`🎯 handleCompletionAction called:`, { action, data, chatIdOrSessionId, platform });
 
     try {
@@ -672,7 +674,8 @@ For your inquiry in ${inquiry.city}
           completionTime: data.completionTime,
           contactNumber: data.contactNumber,
           platform: platform,
-          sessionId: platform === 'web' ? chatIdOrSessionId.toString() : undefined
+          sessionId: platform === 'web' ? chatIdOrSessionId.toString() : undefined,
+          userEmail: userEmail || data.userEmail
         };
         await storage.createSalesRecord(salesData);
         console.log(`✅ Sales record created successfully`);

@@ -759,6 +759,7 @@ export class DatabaseStorage {
     salesRepName?: string;
     platform?: string;
     sessionId?: string;
+    userEmail?: string;
   }) {
     try {
       console.log('💾 Creating sales record:', data);
@@ -779,7 +780,8 @@ export class DatabaseStorage {
         contactNumber: data.contactNumber,
         salesRepName: data.salesRepName,
         platform: data.platform || 'web',
-        sessionId: data.sessionId
+        sessionId: data.sessionId,
+        userEmail: data.userEmail
       }).returning();
 
       console.log('✅ Sales record created:', result[0]);

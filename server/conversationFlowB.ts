@@ -8,6 +8,7 @@ export interface ConversationContextB {
   sessionId?: string;
   step?: string;
   data?: any;
+  userEmail?: string;
 }
 
 export interface FlowResponse {
