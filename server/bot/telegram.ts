@@ -196,19 +196,14 @@ export class TelegramBotService {
     const match = text.match(/\[API\] Session: ([^|]+) \| User: ([^\n]+)\n(.+)/);
 
     if (match) {
-      const [, sessionId, userMessage, userId, userEmail] = match;
-      console.log('🌐 Processing web user message:', { sessionId, userMessage, userId, userEmail });
+      const [, sessionId, userMessage, userId] = match;
+      console.log('🌐 Processing web user message:', { sessionId, userMessage, userId});
 
       let session = this.webSessions.get(sessionId);
       if (!session) {
-        session = { step: 'user_type', userType: 'web', sessionId, messages: [], userEmail: userEmail || null };
+        session = { step: 'user_type', userType: 'web', sessionId, messages: [] };
         this.webSessions.set(sessionId, session);
-      } else {
-        // If the session exists, you may want to update the email
-        if (!session.userEmail && userEmail) {
-          session.userEmail = userEmail;
-        }
-      }
+      } 
 
       session.messages.push({
         senderType: 'user',
@@ -222,7 +217,7 @@ export class TelegramBotService {
         sessionId,
         step: session.step,
         data: session.data,
-        userEmail: session.userEmail
+        
       };
 
       const response = await conversationFlowB.processMessage(context, userMessage);
@@ -239,7 +234,7 @@ export class TelegramBotService {
       this.webSessions.set(sessionId, session);
 
       if (response.action) {
-        await this.handleCompletionAction(response.action, response.data, sessionId, 'web', session.userEmail);
+        await this.handleCompletionAction(response.action, response.data, sessionId, 'web');
       }
 
       if (global.io) {
@@ -574,7 +569,7 @@ For your inquiry in ${inquiry.city}
     }
   }
 
-  async handleCompletionAction(action: string, data: any, chatIdOrSessionId: string | number, platform: 'telegram' | 'web', userEmail?: string) {
+  async handleCompletionAction(action: string, data: any, chatIdOrSessionId: string | number, platform: 'telegram' | 'web') {
     console.log(`🎯 handleCompletionAction called:`, { action, data, chatIdOrSessionId, platform });
 
     try {
@@ -679,7 +674,7 @@ For your inquiry in ${inquiry.city}
           contactNumber: data.contactNumber,
           platform: platform,
           sessionId: platform === 'web' ? chatIdOrSessionId.toString() : undefined,
-          userEmail: userEmail || data.userEmail || session.userEmail
+          // userEmail: userEmail || data.userEmail || session.userEmail
         };
         await storage.createSalesRecord(salesData);
         console.log(`✅ Sales record created successfully`);
