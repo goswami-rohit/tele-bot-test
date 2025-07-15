@@ -199,7 +199,8 @@ export class TelegramBotService {
     //   const [, sessionId, userMessage, userEmail] = match;
     //   console.log('🌐 Processing web user message:', { sessionId, userMessage, userEmail });
 
-    const { sessionId, userMessage, userEmail } = msg;
+    const { sessionId, userEmail } = msg;
+    const userMessage = msg.message || msg.text;
 
     console.log('🌐 Processing web user message:', { sessionId, userMessage, userEmail });
 
