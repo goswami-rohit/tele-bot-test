@@ -193,17 +193,21 @@ export class TelegramBotService {
 
   public async handleWebUserMessage(msg: any) {
     const text = msg.text;
-    const userEmail = msg;
     const match = text.match(/\[API\] Session: ([^|]+) \| User: ([^\n]+)\n(.+)/);
 
     if (match) {
-      const [, sessionId, userId, userMessage] = match;
-      console.log('🌐 Processing web user message:', { sessionId, userId, userMessage, userEmail});
+      const [, sessionId, userId, userMessage, userEmail] = match;
+      console.log('🌐 Processing web user message:', { sessionId, userId, userMessage, userEmail });
 
       let session = this.webSessions.get(sessionId);
       if (!session) {
         session = { step: 'user_type', userType: 'web', sessionId, messages: [], userEmail: userEmail || null };
         this.webSessions.set(sessionId, session);
+      } else {
+        // If the session exists, you may want to update the email
+        if (!session.userEmail && userEmail) {
+          session.userEmail = userEmail;
+        }
       }
 
       session.messages.push({
