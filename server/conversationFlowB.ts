@@ -73,7 +73,7 @@ I help you get instant pricing for cement and TMT bars from verified vendors in 
 
 Reply with the Number of the option to send purchase enquiry to vendors:
 1 Buy Materials 
-2 Enter Sales Records (For Sales Rep.)`,
+2 <System>`,
         nextStep: 'user_type'
       };
     }
