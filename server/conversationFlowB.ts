@@ -24,8 +24,12 @@ class ConversationFlowB {
   async processMessage(context: ConversationContextB, message: string): Promise<ConversationResponse> {
     let { step, data } = context;
 
-    // Initial entry point for new conversations or /start command
-    if (step === '/start' || step === 'completed') { // Also allow 'completed' to return to start
+    // Normalize incoming message for robust comparison (e.g., for main menu selection)
+    const lowerCaseMessage = message.toLowerCase().trim();
+
+    // Initial entry point for new conversations, /start command, or returning to main menu
+    // Added 'start' to the conditions so it matches how telegram.ts initializes new sessions.
+    if (step === 'start' || step === '/start' || step === 'completed' || lowerCaseMessage === '/start') {
       return {
         message: `Hello! How can I help you today? Please choose an option:
 
@@ -33,7 +37,7 @@ class ConversationFlowB {
 2. I am a vendor and want to register/update my profile
 3. I want to record sales data (Sales Rep)`,
         nextStep: 'main_menu_selection',
-        data: data
+        data: data // Preserve data if re-starting from /start or completed
       };
     }
 
@@ -841,7 +845,7 @@ Is this information correct? (Yes/No)`,
     // Generic fallback for unhandled messages/steps
     return {
       message: "I'm sorry, I didn't understand that. Please try again or type /start to go to the main menu.",
-      nextStep: 'start', // Default to start for unknown state
+      nextStep: 'main_menu_selection', // Default to main_menu_selection for unknown state
       data: data
     };
   }
