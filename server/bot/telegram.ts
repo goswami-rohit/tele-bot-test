@@ -226,7 +226,7 @@ export class TelegramBotService {
     let session = this.webSessions.get(sessionId);
     if (!session) {
       // Initialize web session with 'start' step for consistency with conversationFlowB
-      session = { step: 'start', userType: 'web', sessionId, messages: [], data: {} };
+      session = { step: '/start', userType: 'web', sessionId, messages: [], data: {} };
       this.webSessions.set(sessionId, session);
     }
 
