@@ -1,7 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { storage } from "../storage";
 import { conversationFlowB, type ConversationContextB } from "../conversationFlowB";
-import { conversationFlowV, type ConversationContextV } from "../conversationFlowV";
+import { conversationFlowV, type ConversationContextV } from "../conversationFlowV"; 
 import { vendorResponseFlow } from "../vResponseFlow";
 import { Server as SocketIOServer } from 'socket.io';
 //import { googleSheetsService } from '../googleSheetsService';
@@ -225,7 +225,8 @@ export class TelegramBotService {
 
     let session = this.webSessions.get(sessionId);
     if (!session) {
-      session = { step: 'user_type', userType: 'web', sessionId, messages: [] };
+      // Initialize web session with 'start' step for consistency with conversationFlowB
+      session = { step: 'start', userType: 'web', sessionId, messages: [], data: {} };
       this.webSessions.set(sessionId, session);
     }
 
@@ -235,13 +236,26 @@ export class TelegramBotService {
       timestamp: new Date()
     });
 
+    // Modified context to include sendMessage function for web
     const context: ConversationContextB = {
       chatId: sessionId,
       userType: 'web',
       sessionId,
       step: session.step,
       data: session.data,
-
+      sendMessage: async (id: string | number, text: string) => {
+        if (global.io) {
+          global.io.to(`session-${id.toString()}`).emit('bot-message', {
+            sessionId: id,
+            message: text,
+            timestamp: new Date(),
+            senderType: 'bot'
+          });
+          console.log(`📨 Web message sent to ${id}: ${text.substring(0, 50)}...`);
+        } else {
+          console.warn("Socket.IO not initialized, cannot send web message.");
+        }
+      }
     };
 
     const response = await conversationFlowB.processMessage(context, userMessage);
@@ -275,99 +289,47 @@ export class TelegramBotService {
     }
   }
 
-  // A specific sender for web responses, used by conversationFlowB
-  private async sendSocketIOMessageToWeb(sessionId: string, _chatId: number | string, message: string) {
-    if (global.io) {
-      global.io.to(`session-${sessionId}`).emit('bot-message', {
-        sessionId,
-        message: message,
-        timestamp: new Date(),
-        senderType: 'bot'
-      });
-      console.log(`✅ Socket.io message sent to web session ${sessionId}`);
-    } else {
-      console.error(`❌ Socket.io not available for sending message to web session ${sessionId}`);
-    }
-  }
-
-  // Main handler for Telegram incoming messages
   async handleIncomingMessage(msg: any) {
     if (!this.isActive || !this.bot) return;
 
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    // Handle /start command first - ALWAYS reset session for Telegram
-    if (text === '/start') {
-      this.userSessions.delete(chatId.toString());
-      // The flow will restart from 'start' or 'user_type' via conversationFlowB
-      // conversationFlowB will provide the initial response based on its logic.
-      // No 'return' here, let the flow process the /start message.
-    }
-
-    // Handle /help command
-    if (text === '/help') {
-      await this.sendMessage(chatId, `🤖 PriceBot Help:
-
-Commands:
-/start - Start a new pricing inquiry
-/help - Show this help message
-
-For Vendors: To submit a quote, use this format:
-**RATE: [Price] per [Unit]**
-**GST: [Percentage]%**
-**DELIVERY: [Charges]**
-
-Example:
-RATE: 350 per bag
-GST: 18%
-DELIVERY: 50
-Inquiry ID: INQ-123456789
-
-Simply send /start to begin!`);
-      return; // Stop processing after sending help
-    }
-
-    // Check if this is an ongoing vendor response flow for structured rate entry
     const vendorState = vendorResponseFlow.getVendorState(chatId.toString());
     if (vendorState) {
       const response = await vendorResponseFlow.processTextInput(chatId.toString(), text);
-      await this.sendVendorResponse(chatId, response); // Uses sendVendorResponse (which handles structured replies)
+      await this.sendVendorResponse(chatId, response);
       return;
     }
 
-    // Get or initialize user session for the main conversation flow
     let session = this.userSessions.get(chatId.toString());
-    if (!session) {
-      // Initialize with 'start' step for conversationFlowB
-      session = { step: 'start', userType: 'telegram' };
+    // Initialize or reset session to 'start' step for consistency with conversationFlowB
+    if (!session || text === '/start') {
+      session = { step: 'start', userType: 'telegram', data: {} };
       this.userSessions.set(chatId.toString(), session);
     }
 
-    // Context for conversationFlowB
-    const context: ConversationContextB = { // Use ContextB for main flow
+    // Modified context to use ConversationContextB and include sendMessage
+    const context: ConversationContextB = {
       chatId: chatId.toString(),
       userType: 'telegram',
-      sessionId: chatId.toString(), // For Telegram, sessionId is chatId
+      sessionId: chatId.toString(), // For Telegram, sessionId is typically the same as chatId
       step: session.step,
       data: session.data,
-      sendMessage: this.sendMessage.bind(this) // Pass sendMessage function to the flow
+      sendMessage: this.sendMessage.bind(this) // Pass the bot's sendMessage method
     };
 
-    // Process message with conversationFlowB (handles buyer flow and initial user_type)
+    // Use conversationFlowB for processing messages
     const response = await conversationFlowB.processMessage(context, text);
 
-    // Update session based on response from conversationFlowB
     session.step = response.nextStep;
     session.data = { ...session.data, ...response.data };
     this.userSessions.set(chatId.toString(), session);
 
-    // Handle any completion actions triggered by the conversation flow
     if (response.action) {
       await this.handleCompletionAction(response.action, response.data, chatId, 'telegram');
     }
 
-    // Send response back to Telegram user
     const messageOptions: any = {};
     if (response.inlineKeyboard) {
       messageOptions.reply_markup = {
@@ -376,7 +338,6 @@ Simply send /start to begin!`);
     }
     await this.sendMessage(chatId, response.message, messageOptions);
   }
-
 
   async sendMessage(chatId: number | string, message: string, options?: any) {
     if (!this.bot || !this.isActive) return;

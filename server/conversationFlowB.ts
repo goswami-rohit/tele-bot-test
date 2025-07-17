@@ -25,7 +25,7 @@ class ConversationFlowB {
     let { step, data } = context;
 
     // Initial entry point for new conversations or /start command
-    if (step === 'start' || step === 'completed') { // Also allow 'completed' to return to start
+    if (step === '/start' || step === 'completed') { // Also allow 'completed' to return to start
       return {
         message: `Hello! How can I help you today? Please choose an option:
 
