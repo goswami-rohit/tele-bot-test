@@ -1,451 +1,136 @@
-//server/conversationFLowB.ts
-import { storage } from "./storage";
-import { LocationManager } from './locationManager';
+// src/conversationFlowB.ts
+import { AIService } from './bot/aiService';
 
 export interface ConversationContextB {
   chatId: string;
-  userType?: 'telegram' | 'web';
-  sessionId?: string;
-  step?: string;
-  data?: any;
-  userEmail?: string;
+  userType: 'telegram' | 'web';
+  sessionId: string;
+  step: string;
+  data: any;
+  sendMessage: (chatId: string | number, message: string, options?: any) => Promise<void>;
 }
 
-export interface FlowResponse {
+export interface ConversationResponse {
   message: string;
-  nextStep?: string;
-  action?: string;
-  data?: any;
-  showOptions?: string[];
+  nextStep: string;
+  data: any;
+  action?: string; // Optional action to be performed after the step
+  inlineKeyboard?: any[][]; // Optional inline keyboard for Telegram
 }
 
-const CEMENT_TYPES = [
-  'OPC Grade 33',
-  'OPC Grade 43',
-  'OPC Grade 53',
-  'PPC Grade 33',
-  'PPC Grade 43',
-  'PPC Grade 53',
-  'Enter Other Specific Type'
-];
+const aiService = new AIService(process.env.OPENROUTER_API_KEY || '');
 
-const TMT_SIZES = ['5.5mm', '6mm', '8mm', '10mm', '12mm', '16mm', '18mm', '20mm', '24mm', '26mm', '28mm', '32mm', '36mm', '40mm'];
+class ConversationFlowB {
+  async processMessage(context: ConversationContextB, message: string): Promise<ConversationResponse> {
+    let { step, data } = context;
 
-const CEMENT_COMPANIES = [
-  'Ambuja',
-  'Ultratech',
-  'MAX',
-  'Dalmia',
-  'ACC',
-  'Black Tiger',
-  'Topcem',
-  'Star',
-  'Any Company'
-];
-
-const TMT_COMPANIES = [
-  'Xtech',
-  'TATA Tiscon',
-  'JSW',
-  'Shyam Steel',
-  'Any Company'
-];
-
-export class ConversationFlowB {
-  // Helper function to capitalize city names
-  private capitalizeCity(cityName: string): string {
-    return cityName
-      .toLowerCase()
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  }
-
-  async processMessage(context: ConversationContextB, message: string): Promise<FlowResponse> {
-    const { chatId, step, data = {} } = context;
-
-    // Handle /start command
-    if (message === '/start' || !step) {
+    // Initial entry point for new conversations or /start command
+    if (step === 'start' || step === 'completed') { // Also allow 'completed' to return to start
       return {
-        message: `🏗️ Welcome to CemTemBot! 
+        message: `Hello! How can I help you today? Please choose an option:
 
-Let's get you started with your enquiry...
-I help you get instant pricing for cement and TMT bars from verified vendors in your city.
-
-Reply with the Number of the option to send purchase enquiry to vendors:
-1 Buy Materials 
-2 <System>`,
-        nextStep: 'user_type'
+1. I want to inquire about materials (Buyer)
+2. I am a vendor and want to register/update my profile
+3. I want to record sales data (Sales Rep)`,
+        nextStep: 'main_menu_selection',
+        data: data
       };
     }
 
-    // Handle user type selection
-    if (step === 'user_type') {
+    // Handle main menu selection
+    if (step === 'main_menu_selection') {
       if (message === '1') {
+        // Transition to buyer flow (AI-driven or structured)
         return {
-          message: `🏗️ Great! I'll help you get pricing for cement and TMT bars.
-
-What material do you need pricing for?
-1 Cement
-2 TMT Bars
-3 Both Cement & TMT Bars
-
-Reply with 1 or 2 or 3`,
-          nextStep: 'buyer_material',
-          data: { userType: 'buyer' }
+          message: "Alright, let's start a new inquiry. What material are you looking for? (e.g., cement, TMT, both)",
+          nextStep: 'material_selection', // This should be the first step of buyer inquiry flow
+          data: { ...data, userType: 'buyer' }
         };
       } else if (message === '2') {
+        // Transition to vendor registration flow (AI-driven or structured)
+        return {
+          message: "Great! Let's get you registered as a vendor. What's your company name?",
+          nextStep: 'vendor_company_name', // This should be the first step of vendor registration flow
+          data: { ...data, userType: 'vendor' }
+        };
+      } else if (message === '3') {
+        // Transition to sales record flow (Option 3)
         return {
           message: `📊 **Sales Record Entry**
-Choose the item you sold:
-1 Cement
-2 TMT
-3 Both`,
-          nextStep: 'sales_item_type',
-          data: { userType: 'sales_rep' }
+
+What type of item did you sell?
+
+1. Cement
+2. TMT
+3. Both`,
+          nextStep: 'sales_item_type', // Entry point for sales flow
+          data: { ...data, userType: 'sales_rep' } // Set userType for context
         };
       } else {
+        // Fallback for invalid main menu selection
         return {
-          message: 'Please select a valid option:\n\n1 Buy Materials\n2 Enter Sales Records (For Sales Rep.)',
-          nextStep: 'user_type'
-        };
-      }
-    }
-
-    // Buyer flow - Updated
-    if (step === 'buyer_material') {
-      let material, materialDisplay;
-
-      if (message === '1') {
-        material = 'cement';
-        materialDisplay = 'cement';
-      } else if (message === '2') {
-        material = 'tmt';
-        materialDisplay = 'TMT bars';
-      } else if (message === '3') {
-        material = 'both';
-        materialDisplay = 'cement & TMT bars';
-      } else {
-        return {
-          message: `Please reply with 1 for Cement or 2 for TMT Bars and 3 for both`,
-          nextStep: 'buyer_material'
-        };
-      }
-
-      // Move to company preference based on material
-      if (material === 'cement') {
-        return {
-          message: `🏭 Select cement company preference (reply with number):
-
-${CEMENT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
-          nextStep: 'buyer_cement_company_select',
-          data: { ...data, material },
-          showOptions: CEMENT_COMPANIES
-        };
-      } else if (material === 'tmt') {
-        return {
-          message: `🏗️ Select TMT company preference (reply with number):
-
-${TMT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
-          nextStep: 'buyer_tmt_company_select',
-          data: { ...data, material },
-          showOptions: TMT_COMPANIES
-        };
-      } else if (material === 'both') {
-        return {
-          message: `🏭 Let's start with cement. Select cement company preference (reply with number):
-
-${CEMENT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
-          nextStep: 'buyer_cement_company_select',
-          data: { ...data, material },
-          showOptions: CEMENT_COMPANIES
-        };
-      }
-    }
-
-    // NEW: Cement company selection
-    if (step === 'buyer_cement_company_select') {
-      const selectedIndex = parseInt(message.trim()) - 1;
-      const selectedCompany = CEMENT_COMPANIES[selectedIndex];
-
-      if (!selectedCompany) {
-        return {
-          message: `Please select a valid number (1-${CEMENT_COMPANIES.length})`,
-          nextStep: 'buyer_cement_company_select'
-        };
-      }
-
-      return {
-        message: `🏗️ Select cement types you need (reply with numbers separated by commas, e.g., "1,3,5")
-        Choose Grade 33 for repairs/small fixings AND Grade 43 for general house-building::
-
-${CEMENT_TYPES.map((type, index) => `${index + 1}. ${type}`).join('\n')}`,
-        nextStep: 'buyer_cement_types',
-        data: { ...data, cementCompany: selectedCompany },
-        showOptions: CEMENT_TYPES
-      };
-    }
-
-    // NEW: Cement types selection
-    if (step === 'buyer_cement_types') {
-      const selectedIndices = message.split(',').map(num => parseInt(num.trim()) - 1);
-      const selectedTypes = selectedIndices
-        .filter(index => index >= 0 && index < CEMENT_TYPES.length)
-        .map(index => CEMENT_TYPES[index]);
-
-      if (selectedTypes.length === 0) {
-        return {
-          message: `Please select valid cement types using numbers (e.g., "1,3,5")`,
-          nextStep: 'buyer_cement_types'
-        };
-      }
-
-      // Handle "Enter Other Specific Type"
-      if (selectedTypes.includes('Enter Other Specific Type')) {
-        return {
-          message: `Please specify your custom cement type:`,
-          nextStep: 'buyer_cement_custom',
-          data: { ...data, cementTypes: selectedTypes.filter(t => t !== 'Enter Other Specific Type') }
-        };
-      }
-
-      // Check if we need TMT info (for "both" material)
-      if (data.material === 'both') {
-        return {
-          message: `✅ Cement company: ${data.cementCompany}
-✅ Cement types: ${selectedTypes.join(', ')}
-
-🏗️ Now for TMT bars. Select TMT company preference (reply with number):
-
-${TMT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
-          nextStep: 'buyer_tmt_company_select',
-          data: { ...data, cementTypes: selectedTypes },
-          showOptions: TMT_COMPANIES
-        };
-      } else {
-        // Only cement selected, move to city
-        return {
-          message: `✅ Company: ${data.cementCompany}
-✅ Types: ${selectedTypes.join(', ')}
-
-📍 Which city/location do you need these materials in?
-
-Please enter your city name:`,
-          nextStep: 'buyer_city',
-          data: { ...data, cementTypes: selectedTypes }
-        };
-      }
-    }
-
-    // NEW: Handle custom cement type
-    if (step === 'buyer_cement_custom') {
-      const customType = message.trim();
-      const allCementTypes = [...data.cementTypes, customType];
-
-      if (data.material === 'both') {
-        return {
-          message: `✅ Cement company: ${data.cementCompany}
-✅ Cement types: ${allCementTypes.join(', ')}
-
-🏗️ Now for TMT bars. Select TMT company preference (reply with number):
-
-${TMT_COMPANIES.map((company, index) => `${index + 1}. ${company}`).join('\n')}`,
-          nextStep: 'buyer_tmt_company_select',
-          data: { ...data, cementTypes: allCementTypes },
-          showOptions: TMT_COMPANIES
-        };
-      } else {
-        return {
-          message: `✅ Company: ${data.cementCompany}
-✅ Types: ${allCementTypes.join(', ')}
-
-📍 Which city/location do you need these materials in?
-
-Please enter your city name:`,
-          nextStep: 'buyer_city',
-          data: { ...data, cementTypes: allCementTypes }
-        };
-      }
-    }
-
-    // NEW: TMT company selection
-    if (step === 'buyer_tmt_company_select') {
-      const selectedIndex = parseInt(message.trim()) - 1;
-      const selectedCompany = TMT_COMPANIES[selectedIndex];
-
-      if (!selectedCompany) {
-        return {
-          message: `Please select a valid number (1-${TMT_COMPANIES.length})`,
-          nextStep: 'buyer_tmt_company_select'
-        };
-      }
-
-      return {
-        message: `🔧 Select TMT sizes you need (reply with numbers separated by commas, e.g., "3,5,7"):
-
-${TMT_SIZES.map((size, index) => `${index + 1}. ${size}`).join('\n')}`,
-        nextStep: 'buyer_tmt_sizes',
-        data: { ...data, tmtCompany: selectedCompany },
-        showOptions: TMT_SIZES
-      };
-    }
-
-    // NEW: TMT sizes selection
-    if (step === 'buyer_tmt_sizes') {
-      const selectedIndices = message.split(',').map(num => parseInt(num.trim()) - 1);
-      const selectedSizes = selectedIndices
-        .filter(index => index >= 0 && index < TMT_SIZES.length)
-        .map(index => TMT_SIZES[index]);
-
-      if (selectedSizes.length === 0) {
-        return {
-          message: `Please select valid TMT sizes using numbers (e.g., "3,5,7")`,
-          nextStep: 'buyer_tmt_sizes'
-        };
-      }
-
-      return {
-        message: `✅ TMT company: ${data.tmtCompany}
-✅ TMT sizes: ${selectedSizes.join(', ')}
-
-📍 Which city/location do you need these materials in?
-
-Please enter your city name:`,
-        nextStep: 'buyer_city',
-        data: { ...data, tmtSizes: selectedSizes }
-      };
-    }
-
-    // Updated city step to handle new data structure
-    if (step === 'buyer_city') {
-      if (context.userType === 'web') {
-        // For web users: expects "cityId:localityId" format
-        let formattedLocation = message;
-        let cityId, localityId;
-
-        // Try to parse if it's in cityId:localityId format
-        if (message.includes(':')) {
-          [cityId, localityId] = message.split(':');
-          const validLocation = LocationManager.getFormattedLocation(cityId, localityId);
-          if (validLocation && validLocation !== 'Unknown Location') {
-            formattedLocation = validLocation;
-          }
-        }
-
-        //const formattedLocation = LocationManager.getFormattedLocation(cityId, localityId);
-
-        let materialSummary = '';
-        if (data.material === 'cement') {
-          materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}`;
-        } else if (data.material === 'tmt') {
-          materialSummary = `TMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
-        } else if (data.material === 'both') {
-          materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}\nTMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
-        }
-
-        return {
-          message: `📦 How much do you need?
-
-Materials requested:
-${materialSummary}
-📍 Location: ${formattedLocation}
-
-Please specify quantity (For both Cement and TMT if both are selected) (e.g., "50 bags cement or/and 200 pieces or 40kg TMT"):`,
-          nextStep: 'buyer_quantity',
-          data: { ...data, city: formattedLocation, cityId, localityId } // FIX: Use formattedLocation instead of capitalizedCity, add cityId & localityId
-        };
-      } else {
-        // For Telegram users: show available locations
-        const defaults = LocationManager.getDefaults();
-        const defaultLocation = defaults.city && defaults.locality ?
-          LocationManager.getFormattedLocation(defaults.city.id, defaults.locality.id) :
-          'Ganeshguri, Guwahati';
-
-        return {
-          message: `📍 We currently serve ${defaultLocation}.
-
-Type "yes" to continue with this location or "no" if you're in a different area:`,
-          nextStep: 'buyer_city_confirm',
-          data: { ...data, city: defaultLocation, cityId: 'guwahati', localityId: 'ganeshguri' }
-        };
-      }
-    }
-
-    // Add confirmation step for Telegram users
-    if (step === 'buyer_city_confirm') {
-      if (message.toLowerCase() === 'yes' || message.toLowerCase() === 'y') {
-        // Continue with default location
-        let materialSummary = '';
-        if (data.material === 'cement') {
-          materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}`;
-        } else if (data.material === 'tmt') {
-          materialSummary = `TMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
-        } else if (data.material === 'both') {
-          materialSummary = `Cement (${data.cementCompany}): ${data.cementTypes.join(', ')}\nTMT (${data.tmtCompany}): ${data.tmtSizes.join(', ')}`;
-        }
-
-        return {
-          message: `📦 How much do you need?
-
-Materials requested:
-${materialSummary}
-📍 Location: ${data.city}
-
-Please specify quantity (e.g., "50 bags cement or/and 200 pieces TMT"):`,
-          nextStep: 'buyer_quantity',
+          message: 'Please choose a valid option (1, 2, or 3).',
+          nextStep: 'main_menu_selection',
           data: data
         };
-      } else {
-        return {
-          message: `Sorry, we currently only serve Guwahati area. We'll be expanding to more cities soon!
-
-Type /start to try again or contact us for updates on new service areas.`,
-          nextStep: 'completed'
-        };
       }
     }
 
-    if (step === 'buyer_quantity') {
-      return {
-        message: `📱 Great! Please provide your phone number for vendors to contact you:`,
-        nextStep: 'buyer_phone',
-        data: { ...data, quantity: message }
-      };
-    }
+     // --- AI-DRIVEN FLOW SEGMENT (for Buyer/Vendor inquiries) ---
+    // This section can use AI to extract information and guide the conversation
+    // for buyer and vendor inquiry flows, but should generally be skipped if
+    // a user is in a structured sales_record step.
+    const aiExtractionResult = await aiService.extractInformation(message, step);
 
-    // Updated phone step with detailed summary
-    if (step === 'buyer_phone') {
-      let materialDisplay = '';
-      if (data.material === 'cement') {
-        materialDisplay = `🏗️ Cement Types: ${data.cementTypes.join(', ')}
-🏭 Company: ${data.cementCompany}`;
-      } else if (data.material === 'tmt') {
-        materialDisplay = `🔧 TMT Sizes: ${data.tmtSizes.join(', ')}
-🏭 Company: ${data.tmtCompany}`;
-      } else if (data.material === 'both') {
-        materialDisplay = `🏗️ Cement Types: ${data.cementTypes.join(', ')}
-🏭 Cement Company: ${data.cementCompany}
-🔧 TMT Sizes: ${data.tmtSizes.join(', ')}
-🏭 TMT Company: ${data.tmtCompany}`;
+    // Only apply AI extraction if not in a sales record specific step,
+    // or if it's an initial buyer/vendor inquiry step.
+    const isSalesStep = step.startsWith('sales_') || step.startsWith('cement_') || step.startsWith('tmt_') ||
+                         step.startsWith('project_') || step.startsWith('manual_') || step.startsWith('completion_');
+
+    if (aiExtractionResult.extracted && !isSalesStep) {
+      // Corrected: Check data.userType for the user's role
+      if (data.userType === 'buyer') {
+        if (aiExtractionResult.suggestedStep === 'confirm_inquiry') {
+          // AI thinks it has enough for an inquiry
+          return {
+            message: `I understand you need ${aiExtractionResult.data.material} in ${aiExtractionResult.data.city}. Is that correct? (Yes/No)`,
+            nextStep: 'confirm_inquiry',
+            data: { ...data, ...aiExtractionResult.data }
+          };
+        } else if (aiExtractionResult.suggestedStep === 'get_city' && !data.city) {
+          // AI needs city
+          return {
+            message: "Which city are you looking for materials in?",
+            nextStep: 'city_input',
+            data: { ...data, ...aiExtractionResult.data }
+          };
+        } else if (aiExtractionResult.suggestedStep === 'get_quantity' && data.material && !data.quantity) {
+          // AI needs quantity
+          return {
+            message: `How much ${data.material} do you need? (e.g., 500 bags, 10 tons)`,
+            nextStep: 'quantity_input',
+            data: { ...data, ...aiExtractionResult.data }
+          };
+        }
+        // ... add more AI-driven steps for the buyer flow as needed
+      } else if (data.userType === 'vendor') { // Corrected: Check data.userType for the user's role
+        if (aiExtractionResult.suggestedStep === 'vendor_confirm') {
+          // AI thinks it has enough for vendor registration
+          return {
+            message: `You are registering as a vendor. Is your company name ${aiExtractionResult.data.vendorName} and you supply ${aiExtractionResult.data.materials?.join(' and ')} in ${aiExtractionResult.data.city}? (Yes/No)`,
+            nextStep: 'confirm_vendor_registration',
+            data: { ...data, ...aiExtractionResult.data }
+          };
+        }
+        // ... add more AI-driven steps for the vendor flow as needed
       }
-
-      return {
-        message: `✅ Perfect! Your inquiry has been created and sent to vendors in ${data.city}.
-
-📋 **Your Inquiry Summary:**
-${materialDisplay}
-📍 City: ${data.city}
-📦 Quantity: ${data.quantity}
-📱 Contact: ${message}
-
-Vendors will send you detailed quotes shortly!`,
-        nextStep: 'completed',
-        action: 'create_inquiry',
-        data: { ...data, phone: message }
-      };
     }
+    // --- END AI-DRIVEN FLOW SEGMENT ---
 
-    // ========== SALES RECORDS FLOW ==========
+
+    // ========== SALES RECORDS FLOW (Option 3) ==========
+    // This section is a structured, rule-based flow for sales representatives.
+    // It takes precedence once 'sales_item_type' step is initiated.
 
     // Handle sales item type selection
     if (step === 'sales_item_type') {
@@ -920,7 +605,7 @@ Enter your 10-digit mobile number`,
       };
     }
 
-    // Handle sales contact input
+    // Handle sales contact input and finalize sales record
     if (step === 'sales_contact_input') {
       const phone = message.replace(/\s+/g, '');
       if (!/^\d{10}$/.test(phone)) {
@@ -956,18 +641,208 @@ Type /start to record another sale.`;
 
       return {
         message: summaryMessage,
-        nextStep: 'completed',
-        action: 'create_sales_record',
+        nextStep: 'completed', // Mark conversation as completed
+        action: 'create_sales_record', // Trigger action to save to storage
         data: { ...data, contactNumber: phone }
       };
     }
 
     // ========== END SALES RECORDS FLOW ==========
 
-    // Default response
+
+    // --- FALLBACK / DEFAULT RESPONSES (for steps not handled above) ---
+    // This section should handle any other ongoing conversation flows (buyer/vendor)
+    // or provide a generic response if the input doesn't match any known step.
+
+    // Example for buyer flow (place other existing flows here)
+    if (step === 'material_selection') {
+      const lowerCaseMessage = message.toLowerCase();
+      if (lowerCaseMessage.includes('cement') && lowerCaseMessage.includes('tmt')) {
+        return {
+          message: `Great! So you're looking for both Cement and TMT.
+Which city are you looking for materials in?`,
+          nextStep: 'city_input',
+          data: { ...data, material: 'both' }
+        };
+      } else if (lowerCaseMessage.includes('cement')) {
+        return {
+          message: `Okay, Cement. Which city are you looking for cement in?`,
+          nextStep: 'city_input',
+          data: { ...data, material: 'cement' }
+        };
+      } else if (lowerCaseMessage.includes('tmt')) {
+        return {
+          message: `Understood, TMT. Which city are you looking for TMT in?`,
+          nextStep: 'city_input',
+          data: { ...data, material: 'tmt' }
+        };
+      } else {
+        return {
+          message: 'Please specify if you are looking for Cement, TMT, or Both.',
+          nextStep: 'material_selection',
+          data: data
+        };
+      }
+    }
+
+    if (step === 'city_input') {
+      // Basic validation for city input
+      if (message.trim().length < 2) {
+        return {
+          message: 'Please enter a valid city name.',
+          nextStep: 'city_input',
+          data: data
+        };
+      }
+      return {
+        message: `Got it. You're looking for ${data.material} in ${message}.
+How much quantity do you need? (e.g., 500 bags, 10 tons)`,
+        nextStep: 'quantity_input',
+        data: { ...data, city: message }
+      };
+    }
+
+    if (step === 'quantity_input') {
+      // Simple quantity validation
+      if (message.trim().length < 1) {
+        return {
+          message: 'Please enter the quantity you need (e.g., 500 bags, 10 tons).',
+          nextStep: 'quantity_input',
+          data: data
+        };
+      }
+      return {
+        message: `Okay, I'm confirming your inquiry:
+Material: ${data.material}
+City: ${data.city}
+Quantity: ${message}
+
+Is this correct? (Yes/No)`,
+        nextStep: 'confirm_inquiry',
+        data: { ...data, quantity: message }
+      };
+    }
+
+    if (step === 'confirm_inquiry') {
+      if (message.toLowerCase() === 'yes') {
+        return {
+          message: "Great! We're processing your inquiry and connecting you with relevant vendors. You'll receive quotes shortly.",
+          nextStep: 'completed', // End inquiry flow
+          action: 'create_inquiry', // Trigger action to create inquiry in storage
+          data: data
+        };
+      } else if (message.toLowerCase() === 'no') {
+        return {
+          message: "No problem. Let's restart. What material are you looking for?",
+          nextStep: 'material_selection',
+          data: { userType: 'buyer' } // Reset data for a new inquiry
+        };
+      } else {
+        return {
+          message: 'Please respond with "Yes" or "No".',
+          nextStep: 'confirm_inquiry',
+          data: data
+        };
+      }
+    }
+
+    // Example for vendor registration flow
+    if (step === 'vendor_company_name') {
+      if (message.trim().length < 2) {
+        return {
+          message: 'Please enter a valid company name.',
+          nextStep: 'vendor_company_name',
+          data: data
+        };
+      }
+      return {
+        message: `What materials do you supply? (e.g., cement, TMT, both)`,
+        nextStep: 'vendor_material_input',
+        data: { ...data, vendorName: message }
+      };
+    }
+
+    if (step === 'vendor_material_input') {
+      const lowerCaseMessage = message.toLowerCase();
+      let materials: string[] = [];
+      if (lowerCaseMessage.includes('cement')) materials.push('cement');
+      if (lowerCaseMessage.includes('tmt')) materials.push('tmt');
+
+      if (materials.length === 0) {
+        return {
+          message: 'Please specify if you supply Cement, TMT, or Both.',
+          nextStep: 'vendor_material_input',
+          data: data
+        };
+      }
+      return {
+        message: `And which city are you located in?`,
+        nextStep: 'vendor_city_input',
+        data: { ...data, materials: materials }
+      };
+    }
+
+    if (step === 'vendor_city_input') {
+      if (message.trim().length < 2) {
+        return {
+          message: 'Please enter a valid city name.',
+          nextStep: 'vendor_city_input',
+          data: data
+        };
+      }
+      return {
+        message: `What is your contact phone number? (10 digits)`,
+        nextStep: 'vendor_phone_input',
+        data: { ...data, city: message }
+      };
+    }
+
+    if (step === 'vendor_phone_input') {
+      const phone = message.replace(/\s+/g, '');
+      if (!/^\d{10}$/.test(phone)) {
+        return {
+          message: 'Please enter a valid 10-digit mobile number.',
+          nextStep: 'vendor_phone_input',
+          data: data
+        };
+      }
+      return {
+        message: `Thank you, ${data.vendorName}! You supply ${data.materials?.join(' and ')} in ${data.city}. Your contact is ${phone}.
+Is this information correct? (Yes/No)`,
+        nextStep: 'confirm_vendor_registration',
+        data: { ...data, vendorPhone: phone }
+      };
+    }
+
+    if (step === 'confirm_vendor_registration') {
+      if (message.toLowerCase() === 'yes') {
+        return {
+          message: "Great! Your vendor registration is complete. We'll notify you of relevant inquiries.",
+          nextStep: 'completed', // End vendor registration flow
+          action: 'register_vendor', // Trigger action to register vendor in storage
+          data: data
+        };
+      } else if (message.toLowerCase() === 'no') {
+        return {
+          message: "No problem. Let's restart your vendor registration. What's your company name?",
+          nextStep: 'vendor_company_name',
+          data: { userType: 'vendor' } // Reset data for new registration
+        };
+      } else {
+        return {
+          message: 'Please respond with "Yes" or "No".',
+          nextStep: 'confirm_vendor_registration',
+          data: data
+        };
+      }
+    }
+
+
+    // Generic fallback for unhandled messages/steps
     return {
-      message: `I didn't understand that. Type /start to begin again.`,
-      nextStep: 'user_type'
+      message: "I'm sorry, I didn't understand that. Please try again or type /start to go to the main menu.",
+      nextStep: 'start', // Default to start for unknown state
+      data: data
     };
   }
 }
