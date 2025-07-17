@@ -305,7 +305,7 @@ export class TelegramBotService {
     let session = this.userSessions.get(chatId.toString());
     // Initialize or reset session to 'start' step for consistency with conversationFlowB
     if (!session || text === '/start') {
-      session = { step: 'start', userType: 'telegram', data: {} };
+      session = { step: ['start', '/start'], userType: 'telegram', data: {} };
       this.userSessions.set(chatId.toString(), session);
     }
 
