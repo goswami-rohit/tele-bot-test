@@ -1,7 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { storage } from "../storage";
 import { conversationFlowB, type ConversationContextB } from "../conversationFlowB";
-import { conversationFlowV, type ConversationContextV } from "../conversationFlowV"; 
+import { conversationFlowV, type ConversationContextV } from "../conversationFlowV";
 import { vendorResponseFlow } from "../vResponseFlow";
 import { Server as SocketIOServer } from 'socket.io';
 //import { googleSheetsService } from '../googleSheetsService';
@@ -225,8 +225,7 @@ export class TelegramBotService {
 
     let session = this.webSessions.get(sessionId);
     if (!session) {
-      // Initialize web session with 'start' step for consistency with conversationFlowB
-      session = { step: '/start', userType: 'web', sessionId, messages: [], data: {} };
+      session = { step: 'user_type', userType: 'web', sessionId, messages: [] };
       this.webSessions.set(sessionId, session);
     }
 
@@ -236,26 +235,13 @@ export class TelegramBotService {
       timestamp: new Date()
     });
 
-    // Modified context to include sendMessage function for web
     const context: ConversationContextB = {
       chatId: sessionId,
       userType: 'web',
       sessionId,
       step: session.step,
       data: session.data,
-      sendMessage: async (id: string | number, text: string) => {
-        if (global.io) {
-          global.io.to(`session-${id.toString()}`).emit('bot-message', {
-            sessionId: id,
-            message: text,
-            timestamp: new Date(),
-            senderType: 'bot'
-          });
-          console.log(`📨 Web message sent to ${id}: ${text.substring(0, 50)}...`);
-        } else {
-          console.warn("Socket.IO not initialized, cannot send web message.");
-        }
-      }
+      sendMessage: (chatId: string | number, message: string, options?: any) => Promise<void>
     };
 
     const response = await conversationFlowB.processMessage(context, userMessage);
@@ -305,7 +291,7 @@ export class TelegramBotService {
     let session = this.userSessions.get(chatId.toString());
     // Initialize or reset session to 'start' step for consistency with conversationFlowB
     if (!session || text === '/start') {
-      session = { step: ['start', '/start'], userType: 'telegram', data: {} };
+      session = { step: '/start', userType: 'telegram', data: {} };
       this.userSessions.set(chatId.toString(), session);
     }
 
