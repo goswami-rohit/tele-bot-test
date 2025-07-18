@@ -57,6 +57,55 @@ export class TelegramBotService {
     }
   }
 
+  // Getter and setter for webSessions, useful if Socket.IO setup is external
+  public getWebSession(sessionId: string): any {
+    return this.webSessions.get(sessionId);
+  }
+
+  public setWebSession(sessionId: string, session: any): void {
+    this.webSessions.set(sessionId, session);
+  }
+
+  // New method to set up Socket.IO listeners
+  public setupSocketListeners() {
+    if (!global.io) {
+      console.error('❌ global.io is not defined. Socket.IO server not initialized. Ensure your main server file creates and sets global.io.');
+      return;
+    }
+
+    global.io.on('connection', (socket) => {
+      console.log('A web user connected via Socket.IO:', socket.id);
+
+      // Listener for 'join-session' event from the frontend
+      socket.on('join-session', (sessionId: string, data: { userEmail?: string }) => {
+        socket.join(`session-${sessionId}`);
+        console.log(`Socket ${socket.id} joined session ${sessionId}`);
+
+        let session = this.getWebSession(sessionId);
+        if (!session) {
+          session = { step: 'user_type', userType: 'web', sessionId, messages: [], data: {} };
+        }
+        if (data.userEmail && session.userEmail !== data.userEmail) {
+          session.userEmail = data.userEmail;
+          session.data = { ...session.data, userEmail: data.userEmail }; // Ensure userEmail is in session.data
+          console.log(`Session ${sessionId} updated with user email: ${data.userEmail}`);
+        }
+        this.setWebSession(sessionId, session);
+      });
+
+      // Listener for 'send-message' event from the frontend
+      socket.on('send-message', async (payload: { sessionId: string; message: string; userEmail?: string }) => {
+        console.log('Received direct Socket.IO message from web client:', payload);
+        // Directly call handleWebUserMessage with the structured payload
+        await this.handleWebUserMessage(payload);
+      });
+
+      socket.on('disconnect', () => {
+        console.log('Web user disconnected:', socket.id);
+      });
+    });
+  }
+
   async start(useWebhook = false) {
     try {
       this.initializeBot();
@@ -192,50 +241,20 @@ export class TelegramBotService {
     await this.sendMessage(chatId, response.message, messageOptions);
   }
 
-  public async handleWebUserMessage(msg: any) {
-    let sessionId, userMessage, userId, userEmail;
-    const text = msg.message || msg.text;
+  public async handleWebUserMessage(msg: { sessionId: string; message: string; userId?: string; userEmail?: string }) {
+    const { sessionId, message: userMessage, userId = 'web_user', userEmail } = msg;
 
-    if (typeof msg === 'object' && msg.sessionId && msg.message) {
-      // Case 1: Handle the new JSON object format (from frontend)
-      sessionId = msg.sessionId;
-      userMessage = msg.message;
-      userId = msg.userId || 'web_user';
-      userEmail = msg.userEmail;
-
-      console.log('🌐 Processing NEW web user message format:', { sessionId, userMessage, userId, userEmail });
-    } else if (typeof text === 'string') {
-      // Case 2: Handle the old regex string format (from Telegram or old frontend)
-      const match = text.match(/\[API\] Session: ([^|]+) \| User: ([^\n]+)\n(.+)/);
-
-      if (match) {
-        [, sessionId, userId, userMessage] = match;
-        console.log('🌐 Processing OLD web user message format:', { sessionId, userMessage, userId });
-      } else {
-        console.error('❌ Received an invalid string message payload:', text);
-        return;
-      }
-    } else {
-      console.error('❌ Received an unknown message payload format:', msg);
-      return;
-    }
-
-    if (!sessionId || !userMessage) {
-      console.error('❌ Missing critical fields in message payload.');
-      return;
-    }
+    console.log('🌐 Processing direct web user message format:', { sessionId, userMessage, userId, userEmail });
 
     let session = this.webSessions.get(sessionId);
     if (!session) {
-      session = { step: 'user_type', userType: 'web', sessionId, messages: [] };
-      this.webSessions.set(sessionId, session);
+      session = { step: 'user_type', userType: 'web', sessionId, messages: [], data: {} };
     }
 
     // Update session with userEmail if it's new or different
     if (userEmail && session.userEmail !== userEmail) {
-      session.userEmail = userEmail; // Store userEmail directly on session object
-      // Also store in session.data for consistency, as handleCompletionAction checks session.data?.userEmail
-      session.data = { ...session.data, userEmail: userEmail };
+      session.userEmail = userEmail;
+      session.data = { ...session.data, userEmail: userEmail }; // Ensure userEmail is in session.data
       console.log(`Updated session with user email: ${userEmail}`);
     }
 
@@ -245,13 +264,14 @@ export class TelegramBotService {
       timestamp: new Date()
     });
 
+    this.webSessions.set(sessionId, session);
+
     const context: ConversationContextB = {
       chatId: sessionId,
       userType: 'web',
       sessionId,
       step: session.step,
-      data: session.data,
-
+      data: session.data, // session.data now includes userEmail if set
     };
 
     const response = await conversationFlowB.processMessage(context, userMessage);
@@ -285,13 +305,26 @@ export class TelegramBotService {
     }
   }
 
-  async handleIncomingMessage(msg: any) {
+  private async handleIncomingMessage(msg: TelegramBot.Message) { // Use TelegramBot.Message type
     if (!this.isActive || !this.bot) return;
+
+    if (!msg.text) {
+      console.log('Received non-text message from Telegram:', msg);
+      return;
+    }
+
+    // --- IMPORTANT ADDITION ---
+    // Ignore [API] messages as they are now handled by direct Socket.IO connections
+    if (msg.text.startsWith('[API]')) {
+      console.warn('Received [API] message via Telegram hook. This indicates an old web client or misconfiguration. Ignoring this message via Telegram.');
+      return;
+    }
+    // --- END IMPORTANT ADDITION ---
 
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    const vendorState = vendorResponseFlow.getVendorState(chatId.toString());
+    const vendorState = vendorResponseFlow.getVendorState(chatId.toString()); // Assuming vendorResponseFlow is a property
     if (vendorState) {
       const response = await vendorResponseFlow.processTextInput(chatId.toString(), text);
       await this.sendVendorResponse(chatId, response);
@@ -304,14 +337,14 @@ export class TelegramBotService {
       this.userSessions.set(chatId.toString(), session);
     }
 
-    const context: ConversationContextV = {
+    const context: ConversationContextV = { // Using ConversationContextV as per your snippet
       chatId: chatId.toString(),
       userType: 'telegram',
       step: session.step,
       data: session.data
     };
 
-    const response = await conversationFlowV.processMessage(context, text);
+    const response = await conversationFlowV.processMessage(context, text); // Assuming conversationFlowV is imported
 
     session.step = response.nextStep;
     session.data = { ...session.data, ...response.data };
