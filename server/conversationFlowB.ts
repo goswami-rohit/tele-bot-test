@@ -7,7 +7,7 @@ export interface ConversationContextB {
   sessionId: string;
   step: string;
   data: any;
-  sendMessage: (chatId: string | number, message: string, options?: any) => Promise<void>;
+  //sendMessage: (chatId: string | number, message: string, options?: any) => Promise<void>;
 }
 
 export interface ConversationResponse {
